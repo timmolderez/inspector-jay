@@ -1,4 +1,4 @@
-(defproject inspector-jay "0.1.0-SNAPSHOT"
+(defproject inspector-jay "0.1.0"
   :description "Graphical inspector for Java objects and Clojure data structures"
   :url "https://github.com/timmolderez/inspector-jay"
   :license {:name "BSD 3-Clause License"
