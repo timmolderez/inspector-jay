@@ -37,7 +37,7 @@
  "Displays an object inspector window for a given object.
   The return value of inspect is the object itself, so you can plug in this function anywhere you like."
 	(let [f (frame :title (str "Object inspector : " (.toString object)) 
-                :minimum-size [(gui-options :width) :by (gui-options :height)]
+                :size [(gui-options :width) :by (gui-options :height)]
                 :on-close :dispose)
        obj-info (text :multi-line? true :editable? false :text (to-string-verbose (object-node object)) 
                   :font (gui-options :font))
@@ -49,7 +49,7 @@
    (-> obj-tree (.addTreeSelectionListener (tree-listener obj-info crumbs)))
    (bindKeys f obj-tree)
    (config! f :content border-panel)
-   (-> f pack! show!)
+   (-> f show!)
    (-> obj-tree .requestFocus)
    object))
 
