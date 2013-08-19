@@ -3,7 +3,6 @@
 	<name>inspector-jay</name>
 	<comment></comment>
 	<projects>
-		<project>Scratchpad</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>

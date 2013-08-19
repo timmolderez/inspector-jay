@@ -12,14 +12,14 @@
      [java.lang.reflect Modifier Method Field InvocationTargetException]
      [clojure.lang Delay]))
 
+(declare ^:dynamic meth-args) ; This declaration is needed so we can make method arguments available inside the delay-function that invokes a method; see method-node..
+
 (defn invoke-method
-  [method object]
+  [method object & args]
   "Call a method on an object via reflection, and return its return value.
-   If the call produces an exception, it is caught and returned as the return value instead.
-   TODO: Only supports methods with no parameters, for now.."
-;  (-> method (.invoke object nil)))
+   If the call produces an exception, it is caught and returned as the return value instead."
   (try
-    (-> method (.invoke object nil))
+    (-> method (.invoke object (to-array args)))
     (catch InvocationTargetException e (-> e .getCause))))
 
 (def get-visible-fields 
@@ -37,7 +37,7 @@
      filteredAncestors (filter (fn [aField]
                                  (and
                                    (not (Modifier/isPrivate (-> aField .getModifiers)))
-                                   (not (Modifier/isNative (-> aField .getModifiers)))
+                                   ;(not (Modifier/isNative (-> aField .getModifiers)))
                                    (every? (fn [dField] (not= (-> dField .getName) (-> aField .getName)))
                                          declFields)))
                                ancestorFields)]
@@ -58,7 +58,7 @@
      filteredAncestors (filter (fn [aMethod]
                                  (and
                                    (not (Modifier/isPrivate (-> aMethod .getModifiers)))
-                                   (not (Modifier/isNative (-> aMethod .getModifiers)))
+                                   ;(not (Modifier/isNative (-> aMethod .getModifiers)))
                                    (every? (fn [dMethod]
                                              (and
                                                (not= (-> dMethod .getName) (-> aMethod .getName))
@@ -71,20 +71,22 @@
 
 
 (defprotocol ITreeNode
-  "Container type for tree nodes in the object inspector.
-   A tree node contains a Java object; this object may be the return value of a method call, or the value of a field."
   (getValue [this]
-    "Retrieve the Java object contained by this node. In case the object is not available yet, it will be made available now. 
+    "Retrieve the Java object contained by this node. (may be nil) In case the object is not available yet, it will be made available now. 
      (This typically is the case if the object is the return value of a method that has not been invoked yet.)")
   (hasValue [this]
-    "Does this node contain a non-nil object? 
-     (If the object is not available yet, we assume it has a non-nil value..)")
+    "Is the object in this node available, and does it have a non-nil value?")
+  (mightHaveValue [this]
+    "Might this node contain a non-nil object?
+     (If the object is not available yet, we assume it might have a non-nil value..)")
   (isValueAvailable [this]
     "Is the object contained by this node available?")
   (getValueClass [this]
     "Retrieve the type of the object contained by this node.")
   (getMethod [this]
     "Retrieve the method that produces the node's value as its return value. (may be nil)")
+  (invokeMethod [this args]
+    "Retrieve this node's value by invoking its method")
   (getField [this]
     "Retrieve the field associated with this node's value. (may be nil)")
   (getMethods [this]
@@ -95,18 +97,29 @@
     "Retrieve how many method are in the node value's class.")
   (countFields [this]
     "Retrieve how many fields are in the node value's class.")
-  (getKind[this]
+  (getKind [this]
     "Retrieve a keyword that represents this node:
      :object   This is a generic object node, not associated with a method or a field.
      :method   The object contained in this node is the return value of a method call.
-     :field    The object contained in this node is the value of a field."))
+     :field    The object contained in this node is the value of a field.")
+  (getCollectionKind [this]
+    "Determine whether the object in this node represents some kind of collection:
+     :atom        The object is not a collection.
+     :sequence    The object is can be sequenced. (supports the nth and count functions)
+     :collection  The object is any other kind of collection, e.g. a set or map. (supports the seq and count functions)"))
 
 (deftype TreeNode
   [data]
   ITreeNode
   (getValue [this] 
     (force (data :value)))
-  (hasValue [this] 
+  (hasValue [this]
+    (if (instance? Delay (data :value))
+      (and 
+        (realized? (data :value)) 
+        (not= (deref (data :value)) nil))
+      (not= (data :value) nil)))
+  (mightHaveValue [this]
     (and
       (contains? data :value))
       (not= (data :value) nil))
@@ -121,6 +134,9 @@
       :field (-> (data :field) .getType)))
   (getMethod [this]
     (data :method))
+  (invokeMethod [this args]
+    (binding [meth-args args] ; Makes the method arguments available to the value's delay-function
+    (-> this .getValue)))
   (getField [this]
     (data :field))
   (getMethods [this]
@@ -139,7 +155,18 @@
     (cond
       (contains? data :method) :method
       (contains? data :field) :field
-      :else :object)))
+      :else :object))
+  (getCollectionKind [this]
+    (let [cls (-> this .getValueClass)]
+    (cond
+      ; A :sequence is anything that supports the nth function..
+      (-> clojure.lang.Sequential (.isAssignableFrom cls)) :sequence
+      (-> java.util.RandomAccess (.isAssignableFrom cls)) :sequence
+      (-> cls .isArray) :sequence
+      ; All collections support the count and seq functions.. 
+      (-> java.util.Collection (.isAssignableFrom cls)) :collection
+      (-> java.util.Map (.isAssignableFrom cls)) :collection
+      :else :atom))))
 
 (defn object-node ^TreeNode
   [^Object object]
@@ -150,15 +177,17 @@
   [^Method method ^Object receiver]
   "Create a method node, given a method and a receiver object.
    The object contained by this node is the return value of invoking the method."
-  (if 
-    (and
-      (not (Modifier/isNative (-> method .getModifiers)))
-      (not= "void" (-> method .getReturnType .getSimpleName)) 
-      (= 0 (count (-> method .getParameterTypes))))
+   ; (and
+    ;  (not (Modifier/isNative (-> method .getModifiers))))
+    ;  (not= "void" (-> method .getReturnType .getSimpleName)) 
+    ;  (= 0 (count (-> method .getParameterTypes))))
     (let []
       (-> method (.setAccessible true)) ; Enable access to private methods
-      (new TreeNode {:method method :value (delay (invoke-method method receiver))}))
-    (new TreeNode {:method method :value nil})))
+      (new TreeNode {:method method :value (delay
+                                             (if (sequential? meth-args)
+                                               (apply invoke-method method receiver meth-args)
+                                               (invoke-method method receiver)))})))
+    ;(new TreeNode {:method method :value nil})))
 
 (defn field-node ^TreeNode
   [^Field field ^Object receiver]

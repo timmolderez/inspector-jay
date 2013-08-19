@@ -13,13 +13,18 @@
     [clojure.java.io :only [resource]]
     [clojure.java.javadoc]
     [seesaw.core]
+    [seesaw.color]
     [inspector-jay.tree-node])
   (:import
      [javax.swing JTextArea KeyStroke JFrame JTree JComponent]
      [javax.swing.tree DefaultTreeCellRenderer]
-     [javax.swing.event TreeSelectionListener]
+     [javax.swing.event TreeSelectionListener TreeExpansionListener TreeWillExpandListener]
+     [javax.swing.tree ExpandVetoException]
      [java.awt.event KeyEvent ActionListener]
-     [java.lang.reflect Modifier]))
+     [java.lang.reflect Modifier]
+     [net.java.balloontip CustomBalloonTip]
+     [net.java.balloontip.positioners LeftAbovePositioner]
+     [net.java.balloontip.styles IsometricBalloonStyle]))
 
 (defmulti to-string
   "Retrieve a short description of a tree node"
@@ -30,6 +35,9 @@
 (defmulti to-string-verbose
   "Retrieve a detailed description of a tree node"
   (fn [node] (-> node .getKind)))
+(defmulti to-string-value
+  "Retrieve a node's value as a string"
+  (fn [node] (-> node .getCollectionKind)))
 (defmulti get-icon
   "Retrieve the icon associated with a tree node"
   (fn [node] (-> node .getKind)))
@@ -71,21 +79,45 @@
   (truncate (str (-> node .getField .getName)) 
     crumb-length))
 
+(defn to-string-sequence 
+  [sequence]
+  "Create a string listing the elements of a sequence"
+  (let [n (count sequence)
+        indexWidth (inc (int (java.lang.Math/log10 n)))]
+    (join
+      (for [x (range 0 n)]
+        (format (str "[%0" indexWidth "d] %s\n") x (nth sequence x))))))
+
+(defmethod to-string-value :atom [node]
+  (-> node .getValue .toString))
+(defmethod to-string-value :sequence [node]
+  (to-string-sequence (-> node .getValue)))
+(defmethod to-string-value :collection [node]
+  (to-string-sequence (seq(-> node .getValue))))  
+
 (defmethod to-string-verbose :default [node]
   (str
     (-> node .getValue .getClass)
     "\n\n"
-    (-> node .getValue)))
+    (to-string-value node)))
 (defmethod to-string-verbose :method [node]
   (str
     (-> node .getMethod .toString)      
-    (if (-> node .isValueAvailable)
-           (str "\n\n" (-> node .getValue)))))
+    (if (-> node .hasValue)
+           (str 
+             "\n\n" 
+             (-> node .getValue .getClass .getName) " (dynamic type)"
+             "\n\n" 
+             (to-string-value node)))))
 (defmethod to-string-verbose :field [node]
   (str 
     (-> node .getField)
-    "\n\n"
-    (-> node .getValue)))
+    (if (-> node .hasValue)
+      (str 
+        "\n\n"
+        (-> node .getValue .getClass .getName) " (dynamic type)"
+        "\n\n"
+        (to-string-value node)))))
 
 (defmethod get-icon :default [node]
   (icon (resource "icons/genericvariable_obj.gif")))
@@ -116,8 +148,8 @@
       (-> this (.setIcon (get-icon value)))
       this)))
 
-(defn tree-listener ^TreeSelectionListener
-  [^JTextArea info-panel crumbs-panel]  
+(defn tree-selection-listener ^TreeSelectionListener
+  [info-panel crumbs-panel]  
   "Update the detailed information panel, as well as the breadcrumbs, whenever a tree node is selected"
   (proxy [TreeSelectionListener] []
     (valueChanged [event]
@@ -128,6 +160,62 @@
           (join(interpose "<font color=\"#268bd2\"><b> &gt; </b></font>" 
                  (map to-string-breadcrumb (-> event .getNewLeadSelectionPath .getPath))))
           "</html>")))))
+
+(defn tree-expansion-listener ^TreeExpansionListener
+  [info-panel]
+  "Updates the detailed information panel whenever a node is expanded."
+  (proxy [TreeExpansionListener] []
+    (treeExpanded [event]
+      (config! info-panel :text (to-string-verbose (-> event .getPath .getLastPathComponent))))
+    (treeCollapsed [event])))
+
+(defn tree-will-expand-listener ^TreeWillExpandListener
+  []
+  "Displays a dialog if the user needs to enter some actual parameters to invoke a method."
+  (proxy [TreeWillExpandListener] []
+    (treeWillExpand [event]
+      (let [jtree (-> event .getSource)
+            node (-> event .getPath .getLastPathComponent)]
+        (if (not (-> node .isValueAvailable))
+          (if (= 0 (count (-> node .getMethod .getParameterTypes)))
+            ; No parameters needed; we can simply call .getValue to make the value available
+            (-> node .getValue)
+             ; Otherwise we'll need to ask the user to enter some parameter values
+            (let [param-types (-> node .getMethod .getParameterTypes)
+                  param-boxes (for [x param-types]
+                                (text :tip (-> x .getSimpleName) :columns 32 ))
+                  params (grid-panel :rows (inc (count param-types)) :columns 1)
+                  ok-button (button :text "Call")
+                  cancel-button (button :text "Cancel")
+                  buttons (flow-panel)
+                  border-panel (border-panel :center params :south buttons)]
+              (-> buttons (.add ok-button))
+              (-> buttons (.add cancel-button))
+              (-> params (.add (label "Enter parameter values to call this method:")))
+              (doseq [x param-boxes]
+                (-> params (.add x)))
+              (let [btip (new CustomBalloonTip 
+                           jtree
+                           border-panel
+                           (-> jtree (.getPathBounds (-> event .getPath)))
+                           (new IsometricBalloonStyle (-> border-panel .getBackground) (color "#268bd2") 5)
+                           (new LeftAbovePositioner 8 5)
+                           nil)]
+                (-> (first param-boxes) .requestFocus)
+                (listen cancel-button :action (fn [e] 
+                                                (-> btip .closeBalloon)
+                                                (-> jtree .requestFocus)))
+                (listen ok-button :action (fn [e]
+                                            (let [args (for [x param-boxes]
+                                                         (eval (read-string (-> x .getText))))]
+                                              (-> node  (.invokeMethod args))
+                                              ;(apply get-value-args node args)
+                                              (-> btip .closeBalloon)
+                                              (-> jtree (.expandPath (-> event .getPath)))
+                                              (-> jtree .requestFocus))))) 
+              
+              (throw (new ExpandVetoException event))))))) ; Deny expanding the tree node; it will be expanded once the value is available
+    (treeWillCollapse [event])))
 
 (defn bindKeys
   [^JFrame frame ^JTree tree]

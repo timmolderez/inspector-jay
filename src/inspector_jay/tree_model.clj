@@ -15,35 +15,26 @@
      [javax.swing.tree TreeModel]
      [java.lang.reflect Method]))
 
-(defn dispatch-collection [node]
-  "Determines what kind of collection/data structure this node contains."
-  (let [cls (-> node .getValueClass)]
-    (cond
-      ; A :sequence is anything that supports the nth function..
-      (-> clojure.lang.Sequential (.isAssignableFrom cls)) :sequence
-      (-> java.util.RandomAccess (.isAssignableFrom cls)) :sequence
-      (-> cls .isArray) :sequence
-      ; All collections support the count and seq functions.. 
-      (-> java.util.Collection (.isAssignableFrom cls)) :collection
-      (-> java.util.Map (.isAssignableFrom cls)) :collection
-      :else :default)))
-
 (defmulti is-leaf
   "Is this tree node a leaf?"
-  (fn [node] (dispatch-collection node)))
+  (fn [node] (-> node .getCollectionKind)))
 (defmulti get-child
   "Get the child of a node at a certain index"
-  (fn [node index] (dispatch-collection node)))
+  (fn [node index] (-> node .getCollectionKind)))
 (defmulti get-child-count
   "Get the number of children of a node"
-  (fn [node] (dispatch-collection node)))
+  (fn [node] (-> node .getCollectionKind)))
 
 (defmethod is-leaf :default [node]
-  (not (-> node .hasValue)))
+  (not (-> node .mightHaveValue)))
 (defmethod is-leaf :sequence [node]
-  (= 0 (count (-> node .getValue))))
+  (if (-> node .hasValue)
+    (= 0 (count (-> node .getValue)))
+    false))
 (defmethod is-leaf :collection [node]
-  (= 0 (count (-> node .getValue))))
+  (if (-> node .hasValue)
+    (= 0 (count (-> node .getValue)))
+    false))
 
 (defmethod get-child :default [node index]
   (if (< index (-> node .countMethods))
@@ -60,11 +51,17 @@
   (object-node (nth (seq (-> node .getValue)) index)))
 
 (defmethod get-child-count :default [node]
-  (+ (-> node .countMethods) (-> node .countFields)))
+  (if (-> node .hasValue)
+    (+ (-> node .countMethods) (-> node .countFields))
+    0))
 (defmethod get-child-count :sequence [node]
-  (count (-> node .getValue)))
+  (if (-> node .hasValue)
+    (count (-> node .getValue))
+    0))
 (defmethod get-child-count :collection [node]
-  (count (-> node .getValue)))
+  (if (-> node .hasValue)
+    (count (-> node .getValue))
+    0))
 
 (defn tree-model ^TreeModel
   [^Object rootObj]

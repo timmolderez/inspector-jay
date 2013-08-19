@@ -1,0 +1,17 @@
+Release notes
+-------------
+
+v0.1.5
+------
+
+* New feature - Initial support for calling methods with parameters
+* New feature - Info panel now lists all elements of collections instead of the collection itself
+* Bug fixed - Method nodes returning null are now correctly recognized as leaf nodes
+* Bug fixed - Return value was retrieved too early for methods returning a collection
+* Change - Native members are now shown as well
+* Change - Compiles to Java 6 (instead of Java 7)
+
+v0.1
+----
+
+* Initial release
