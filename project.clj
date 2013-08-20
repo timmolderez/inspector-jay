@@ -7,4 +7,5 @@
                  [seesaw "1.4.3"]
                  [net.java.balloontip/balloontip "1.2.1"]]
   :plugins [[codox "0.6.4"]]
+  :aot [inspector-jay.core]
   :javac-options ["-target" "1.6" "-source" "1.6" "-Xlint:-options"])
