@@ -5,10 +5,12 @@ Inspector Jay lets you inspect Java objects and Clojure data structures with a s
 
 - Inspect just about anything that is reachable from an object by navigating Inspector Jay's tree structure.
 - Examine the field values of objects, as well as the return values (or even exceptions) of invoked methods.
-- Similar to `clojure.inspector`, Inspector Jay can examine Clojure data structures, as well as Java collections.
+- Similar to `clojure.inspector`, Inspector Jay can examine Clojure data structures and Java collections.
 - Inspector Jay can be used in both Clojure and Java applications.
 
-![adbc logo](https://raw.github.com/timmolderez/inspector-jay/master/resources/images/screenshot.PNG)
+![adbc logo](https://raw.github.com/timmolderez/inspector-jay/master/resources/images/screenshot-edit.png)
+
+Fun fact: Inspector Jay was born and raised on the streets of west Philadelphia. Back there, they call him.. the fresh prince of Cloj-Air.
 
 ### Installation
 
