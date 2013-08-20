@@ -10,8 +10,6 @@ Inspector Jay lets you inspect Java objects and Clojure data structures with a s
 
 ![adbc logo](https://raw.github.com/timmolderez/inspector-jay/master/resources/images/screenshot-edit.png)
 
-Fun fact: Inspector Jay was born and raised on the streets of west Philadelphia. Back there, they call him.. the fresh prince of Cloj-Air.
-
 ### Installation
 
 If you're using **Leiningen**, add `[inspector-jay "0.1.0"]` to the dependencies in your `project.clj` file.
