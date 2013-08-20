@@ -17,11 +17,11 @@ If you're using **Leiningen**, add `[inspector-jay "0.1.0"]` to the dependencies
 If you're using **Maven**, add the following dependency to your `pom.xml` file:
 
 ```xml
-    <dependency>
-      <groupId>inspector-jay</groupId>
-      <artifactId>inspector-jay</artifactId>
-      <version>0.1.0</version>
-    </dependency>
+<dependency>
+  <groupId>inspector-jay</groupId>
+  <artifactId>inspector-jay</artifactId>
+  <version>0.1.0</version>
+</dependency>
 ```
 
 Finally, you can also [download Inspector Jay as a stand-alone .jar](http://timmolderez.be/builds/inspector-jay/) file.
@@ -31,15 +31,15 @@ Finally, you can also [download Inspector Jay as a stand-alone .jar](http://timm
 If you're using **Clojure**, give these examples a try in the REPL:
 
 ```clojure
-    (use '(inspector-jay core))
-    (inspect (new java.io.File "."))
-    (inspect [[1 :2] {:three 3.0 :four "4"}])
+(use '(inspector-jay core))
+(inspect (new java.io.File "."))
+(inspect [[1 :2] {:three 3.0 :four "4"}])
 ```
 
 If you're using **Java**, you can call Inspector Jay as follows:
 
 ```java
-    inspectorjay.InspectoryJay.inspect(new java.io.File("."));
+inspectorjay.InspectoryJay.inspect(new java.io.File("."));
 ```
 
 Note that Inspector Jay windows are also keyboard-friendly:
