@@ -16,11 +16,12 @@
     [clojure.java.io :only [resource]]
     [seesaw
      [core]
+     [border]
      [font]]
     [inspector-jay
      [tree-node :only [object-node]]
      [tree-model]
-     [tree-ui]]))
+     [gui]]))
 
 ; Use the OS's native look and feel
 (native!)
@@ -41,16 +42,20 @@
                 :on-close :dispose)
        obj-info (text :multi-line? true :editable? false :text (to-string-verbose (object-node object)) 
                   :font (gui-options :font))
-       obj-tree (tree :model (tree-model object)) 
+       obj-tree (tree :model (tree-model object))
        crumbs (label :text (to-string-breadcrumb (object-node object)) :icon (icon (resource "icons/toggle_breadcrumb.gif")))
-       split-pane (top-bottom-split (scrollable obj-info) (scrollable obj-tree) :divider-location 1/5)
-       border-panel (border-panel :south crumbs :center split-pane)]
+       obj-info-scroll (scrollable obj-info)
+       obj-tree-scroll (scrollable obj-tree)
+       split-pane (top-bottom-split obj-info-scroll obj-tree-scroll :divider-location 1/5)
+       main-panel (border-panel :north (tool-panel obj-tree) :south crumbs :center split-pane)]
+   (-> obj-info-scroll (.setBorder (empty-border)))
+   (-> obj-tree-scroll (.setBorder (empty-border)))
    (-> obj-tree (.setCellRenderer (tree-renderer)))
    (-> obj-tree (.addTreeSelectionListener (tree-selection-listener obj-info crumbs)))
    (-> obj-tree (.addTreeExpansionListener (tree-expansion-listener obj-info)))
    (-> obj-tree (.addTreeWillExpandListener (tree-will-expand-listener)))
-   (bindKeys f obj-tree)
-   (config! f :content border-panel)
+   (bind-keys f obj-tree)
+   (config! f :content main-panel)
    (-> f show!)
    (-> obj-tree .requestFocus)
    object))

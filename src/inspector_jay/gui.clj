@@ -5,18 +5,22 @@
 ; which accompanies this distribution, and is available at
 ; http://www.opensource.org/licenses/BSD-3-Clause
 
-(ns inspector-jay.tree-ui
-  "Defines how each tree node is displayed in the GUI"
+(ns inspector-jay.gui
+  "Defines Inspector Jay's graphical components"
   {:author "Tim Molderez"}
   (:use 
     [clojure.string :only [join]]
     [clojure.java.io :only [resource]]
     [clojure.java.javadoc]
-    [seesaw.core]
-    [seesaw.color]
-    [inspector-jay.tree-node])
+    [seesaw
+     [core]
+     [color]
+     [border]
+     [font]]
+    [inspector-jay.tree-node]
+    [inspector-jay.tree-model])
   (:import
-     [javax.swing JTextArea KeyStroke JFrame JTree JComponent]
+     [javax.swing JTextArea KeyStroke JFrame JPanel JTree JComponent]
      [javax.swing.tree DefaultTreeCellRenderer]
      [javax.swing.event TreeSelectionListener TreeExpansionListener TreeWillExpandListener]
      [javax.swing.tree ExpandVetoException]
@@ -217,9 +221,30 @@
               (throw (new ExpandVetoException event))))))) ; Deny expanding the tree node; it will be expanded once the value is available
     (treeWillCollapse [event])))
 
-(defn bindKeys
+(defn tool-panel ^JPanel
+  [jtree]
+  "Create the toolbar of the Inspector Jay window"
+  (let [button-panel (horizontal-panel)
+        view-button (button :icon (icon (resource "icons/javaassist_co.gif")) :size [24 :by 24])
+        doc-button (button :icon (icon (resource "icons/javadoc.gif")) :size [24 :by 24])
+        invoke-button (button :icon (icon (resource "icons/runlast_co.gif")) :size [24 :by 24])
+        search-txt (text :columns 16 :text "Search...")
+        toolbar (border-panel :west button-panel :east search-txt)]
+    (-> toolbar (.setBorder (empty-border :thickness 1)))
+    (-> view-button (.setContentAreaFilled false))
+    (-> doc-button (.setContentAreaFilled false))
+    (-> invoke-button (.setContentAreaFilled false))
+    (-> button-panel (.add view-button))
+    (-> button-panel (.add doc-button))
+    (-> button-panel (.add invoke-button))
+    (listen view-button :action (fn [e]
+                                  (println (-> jtree .getModel))
+                                  (-> jtree (.setModel (tree-model (new Object))))))
+    toolbar))
+
+(defn bind-keys
   [^JFrame frame ^JTree tree]
-  "Attach various key bindings to frame, given tree"
+  "Attach various key bindings to the Inspector Jay window"
   (let
     [f1Key (KeyStroke/getKeyStroke KeyEvent/VK_F1 0)
      escKey (KeyStroke/getKeyStroke KeyEvent/VK_ESCAPE 0)]
