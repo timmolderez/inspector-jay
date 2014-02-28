@@ -26,8 +26,8 @@
      [javax.swing.tree ExpandVetoException]
      [java.awt.event KeyEvent ActionListener]
      [java.lang.reflect Modifier]
-     [net.java.balloontip CustomBalloonTip]
-     [net.java.balloontip.positioners LeftAbovePositioner]
+     [net.java.balloontip BalloonTip CustomBalloonTip]
+     [net.java.balloontip.positioners LeftAbovePositioner LeftBelowPositioner]
      [net.java.balloontip.styles IsometricBalloonStyle]))
 
 (defmulti to-string
@@ -87,7 +87,9 @@
   [sequence]
   "Create a string listing the elements of a sequence"
   (let [n (count sequence)
-        indexWidth (inc (int (java.lang.Math/log10 n)))]
+        indexWidth (if (not= n 0)
+                     (int (java.lang.Math/ceil (java.lang.Math/log10 n)))
+                     0)]
     (join
       (for [x (range 0 n)]
         (format (str "[%0" indexWidth "d] %s\n") x (nth sequence x))))))
@@ -222,24 +224,38 @@
     (treeWillCollapse [event])))
 
 (defn tool-panel ^JPanel
-  [jtree]
+[jtree]
   "Create the toolbar of the Inspector Jay window"
   (let [button-panel (horizontal-panel)
-        view-button (button :icon (icon (resource "icons/javaassist_co.gif")) :size [24 :by 24])
+        filter-button (button :icon (icon (resource "icons/javaassist_co.gif")) :size [24 :by 24])
+        ;filter-menu (popup :items [(menu-item :text "hello") (menu-item :text "hello worldd")])
         doc-button (button :icon (icon (resource "icons/javadoc.gif")) :size [24 :by 24])
         invoke-button (button :icon (icon (resource "icons/runlast_co.gif")) :size [24 :by 24])
         search-txt (text :columns 16 :text "Search...")
         toolbar (border-panel :west button-panel :east search-txt)]
     (-> toolbar (.setBorder (empty-border :thickness 1)))
-    (-> view-button (.setContentAreaFilled false))
+    
+    (-> filter-button (.setContentAreaFilled false))
     (-> doc-button (.setContentAreaFilled false))
     (-> invoke-button (.setContentAreaFilled false))
-    (-> button-panel (.add view-button))
+    
+    (-> filter-button (.setToolTipText "View options"))
+    (-> doc-button (.setToolTipText "Open Javadoc (in browser)"))
+    (-> invoke-button (.setToolTipText "(Re)invoke selected method"))
+    
+    (-> button-panel (.add filter-button))
     (-> button-panel (.add doc-button))
     (-> button-panel (.add invoke-button))
-    (listen view-button :action (fn [e]
-                                  (println (-> jtree .getModel))
-                                  (-> jtree (.setModel (tree-model (new Object))))))
+    (listen filter-button :action (fn [e]
+                                    ;(println (-> jtree .getModel))
+                                    ;(-> filter-menu (.show filter-button 10 10))
+                                    (new BalloonTip 
+                                      filter-button
+                                      (label :text "hello")
+                                      (new IsometricBalloonStyle (-> button-panel .getBackground) (color "#268bd2") 5)
+                                      (new LeftBelowPositioner 8 5)
+                                      nil)
+                                    (-> jtree (.setModel (tree-model (new Object))))))
     toolbar))
 
 (defn bind-keys

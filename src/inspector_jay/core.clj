@@ -48,6 +48,7 @@
        obj-tree-scroll (scrollable obj-tree)
        split-pane (top-bottom-split obj-info-scroll obj-tree-scroll :divider-location 1/5)
        main-panel (border-panel :north (tool-panel obj-tree) :south crumbs :center split-pane)]
+   (-> split-pane (.setDividerSize 9))
    (-> obj-info-scroll (.setBorder (empty-border)))
    (-> obj-tree-scroll (.setBorder (empty-border)))
    (-> obj-tree (.setCellRenderer (tree-renderer)))
