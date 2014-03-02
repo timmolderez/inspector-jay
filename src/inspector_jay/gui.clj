@@ -1,4 +1,4 @@
-; Copyright (c) 2013 Tim Molderez.
+; Copyright (c) 2013-2014 Tim Molderez.
 ;
 ; All rights reserved. This program and the accompanying materials
 ; are made available under the terms of the 3-Clause BSD License
@@ -17,31 +17,48 @@
      [color]
      [border]
      [font]]
-    [inspector-jay.tree-node]
-    [inspector-jay.tree-model])
+    [inspector-jay
+     [utils]
+     [tree-node]
+     [tree-model]])
   (:import
-     [javax.swing JTextArea KeyStroke JFrame JPanel JTree JComponent]
-     [javax.swing.tree DefaultTreeCellRenderer]
-     [javax.swing.event TreeSelectionListener TreeExpansionListener TreeWillExpandListener]
-     [javax.swing.tree ExpandVetoException]
-     [java.awt.event KeyEvent ActionListener]
-     [java.lang.reflect Modifier]
-     [net.java.balloontip BalloonTip CustomBalloonTip]
-     [net.java.balloontip.positioners LeftAbovePositioner LeftBelowPositioner]
-     [net.java.balloontip.styles IsometricBalloonStyle]))
+    [javax.swing Box JTextArea KeyStroke JFrame JPanel JTree JToolBar JComponent JToolBar$Separator UIManager JSplitPane]
+    [javax.swing.tree DefaultTreeCellRenderer]
+    [javax.swing.event TreeSelectionListener TreeExpansionListener TreeWillExpandListener]
+    [javax.swing.tree ExpandVetoException]
+    [java.awt Rectangle]
+    [java.awt.event KeyEvent ActionListener]
+    [java.lang.reflect Modifier]
+    [net.java.balloontip BalloonTip CustomBalloonTip]
+    [net.java.balloontip.positioners LeftAbovePositioner LeftBelowPositioner]
+    [net.java.balloontip.styles IsometricBalloonStyle]))
+
+(native!) ; Use the OS's native look and feel
+
+(def gui-options ; Inspector Jay GUI options
+  {:width 800
+   :height 600
+   :font (font :name :sans-serif :style #{:plain})
+   :crumb-length 20
+   :btip-style `(new IsometricBalloonStyle (UIManager/getColor "Panel.background") (color "#268bd2") 5)
+   :btip-positioner `(new LeftAbovePositioner 8 5)})
 
 (defmulti to-string
   "Retrieve a short description of a tree node"
   (fn [node] (-> node .getKind)))
+
 (defmulti to-string-breadcrumb
   "Retrieve a string to describe a tree node in a path of breadcrumbs"
   (fn [node] (-> node .getKind)))
+
 (defmulti to-string-verbose
   "Retrieve a detailed description of a tree node"
   (fn [node] (-> node .getKind)))
+
 (defmulti to-string-value
   "Retrieve a node's value as a string"
   (fn [node] (-> node .getCollectionKind)))
+
 (defmulti get-icon
   "Retrieve the icon associated with a tree node"
   (fn [node] (-> node .getKind)))
@@ -61,45 +78,20 @@
     " : "
     (-> node .getValue)))
 
-(defn truncate [string length]
-  "Returns a truncated string. If the string is longer than length, we only return the first 'length' characters and append an ellipsis to it."
-  (if (> (count string) length)
-    (str (subs string 0 length) "...")
-    string))
-(def crumb-length 20) ; Max string length of a breadcrumb node
-
 (defmethod to-string-breadcrumb :default [node]
   (truncate 
     (-> node .getValue .toString)
-    crumb-length))
+    (gui-options :crumb-length)))
 (defmethod to-string-breadcrumb :method [node]
   (truncate (str
     (-> node .getMethod .getName)
     "("
     (join (interpose ", " (map (memfn getSimpleName) (-> node .getMethod .getParameterTypes))))
     ")")
-    crumb-length))
+    (gui-options :crumb-length)))
 (defmethod to-string-breadcrumb :field [node]
   (truncate (str (-> node .getField .getName)) 
-    crumb-length))
-
-(defn to-string-sequence 
-  [sequence]
-  "Create a string listing the elements of a sequence"
-  (let [n (count sequence)
-        indexWidth (if (not= n 0)
-                     (int (java.lang.Math/ceil (java.lang.Math/log10 n)))
-                     0)]
-    (join
-      (for [x (range 0 n)]
-        (format (str "[%0" indexWidth "d] %s\n") x (nth sequence x))))))
-
-(defmethod to-string-value :atom [node]
-  (-> node .getValue .toString))
-(defmethod to-string-value :sequence [node]
-  (to-string-sequence (-> node .getValue)))
-(defmethod to-string-value :collection [node]
-  (to-string-sequence (seq(-> node .getValue))))  
+    (gui-options :crumb-length)))
 
 (defmethod to-string-verbose :default [node]
   (str
@@ -125,6 +117,13 @@
         "\n\n"
         (to-string-value node)))))
 
+(defmethod to-string-value :atom [node]
+  (-> node .getValue .toString))
+(defmethod to-string-value :sequence [node]
+  (to-string-sequence (-> node .getValue)))
+(defmethod to-string-value :collection [node]
+  (to-string-sequence (seq(-> node .getValue))))  
+
 (defmethod get-icon :default [node]
   (icon (resource "icons/genericvariable_obj.gif")))
 (defmethod get-icon :method [node]
@@ -144,8 +143,7 @@
     (Modifier/isProtected mod) (icon (resource "icons/field_protected_obj.gif"))
     :else (icon (resource "icons/field_default_obj.gif")))))
 
-(defn tree-renderer ^DefaultTreeCellRenderer
-  []
+(defn tree-renderer ^DefaultTreeCellRenderer []
   "Returns a cell renderer which defines what each tree node should look like"
   (proxy [DefaultTreeCellRenderer] []
     (getTreeCellRendererComponent [tree value selected expanded leaf row hasFocus]
@@ -154,8 +152,7 @@
       (-> this (.setIcon (get-icon value)))
       this)))
 
-(defn tree-selection-listener ^TreeSelectionListener
-  [info-panel crumbs-panel]  
+(defn tree-selection-listener ^TreeSelectionListener [info-panel crumbs-panel]  
   "Update the detailed information panel, as well as the breadcrumbs, whenever a tree node is selected"
   (proxy [TreeSelectionListener] []
     (valueChanged [event]
@@ -167,16 +164,14 @@
                  (map to-string-breadcrumb (-> event .getNewLeadSelectionPath .getPath))))
           "</html>")))))
 
-(defn tree-expansion-listener ^TreeExpansionListener
-  [info-panel]
+(defn tree-expansion-listener ^TreeExpansionListener [info-panel]
   "Updates the detailed information panel whenever a node is expanded."
   (proxy [TreeExpansionListener] []
     (treeExpanded [event]
       (config! info-panel :text (to-string-verbose (-> event .getPath .getLastPathComponent))))
     (treeCollapsed [event])))
 
-(defn tree-will-expand-listener ^TreeWillExpandListener
-  []
+(defn tree-will-expand-listener ^TreeWillExpandListener []
   "Displays a dialog if the user needs to enter some actual parameters to invoke a method."
   (proxy [TreeWillExpandListener] []
     (treeWillExpand [event]
@@ -204,8 +199,8 @@
                            jtree
                            border-panel
                            (-> jtree (.getPathBounds (-> event .getPath)))
-                           (new IsometricBalloonStyle (-> border-panel .getBackground) (color "#268bd2") 5)
-                           (new LeftAbovePositioner 8 5)
+                           (eval (gui-options :btip-style))
+                           (eval (gui-options :btip-positioner))
                            nil)]
                 (-> (first param-boxes) .requestFocus)
                 (listen cancel-button :action (fn [e] 
@@ -223,39 +218,70 @@
               (throw (new ExpandVetoException event))))))) ; Deny expanding the tree node; it will be expanded once the value is available
     (treeWillCollapse [event])))
 
-(defn tool-panel ^JPanel
-[jtree]
+(defn- open-javadoc [jtree]
+  "Search Javadoc for the selected node (if present)"
+  (let [selection (-> jtree .getLastSelectedPathComponent)]
+    (if (not= selection nil)
+      (javadoc (-> selection .getValueClass)))))
+
+(defn tool-panel ^JToolBar [^JTree jtree ^JSplitPane split-pane]
   "Create the toolbar of the Inspector Jay window"
-  (let [button-panel (horizontal-panel)
-        filter-button (button :icon (icon (resource "icons/javaassist_co.gif")) :size [24 :by 24])
-        ;filter-menu (popup :items [(menu-item :text "hello") (menu-item :text "hello worldd")])
-        doc-button (button :icon (icon (resource "icons/javadoc.gif")) :size [24 :by 24])
-        invoke-button (button :icon (icon (resource "icons/runlast_co.gif")) :size [24 :by 24])
-        search-txt (text :columns 16 :text "Search...")
-        toolbar (border-panel :west button-panel :east search-txt)]
+  (let [iconSize [24 :by 24] 
+        sort-button (toggle :icon (icon (resource "icons/alphab_sort_co.gif")) :size iconSize :selected? true)
+        filter-button (button :icon (icon (resource "icons/filter_history.gif")) :size iconSize)
+        filter-panel (vertical-panel :items [(checkbox :text "Methods" :selected? true)
+                                             (checkbox :text "Fields" :selected? true)
+                                             (separator)
+                                             (checkbox :text "Public" :selected? true)
+                                             (checkbox :text "Protected")
+                                             (checkbox :text "Private")
+                                             (separator)
+                                             (checkbox :text "Static")
+                                             (checkbox :text "Inherited")])
+        pane-button (toggle :icon (icon (resource "icons/details_view.gif")) :size iconSize :selected? true)
+        doc-button (button :icon (icon (resource "icons/javadoc.gif")) :size iconSize)
+        invoke-button (button :icon (icon (resource "icons/runlast_co.gif")) :size iconSize)
+        filter-tip (delay (new BalloonTip 
+                            filter-button
+                            filter-panel
+                            (eval (gui-options :btip-style))
+                            (eval (gui-options :btip-positioner))
+                            nil))
+        search-txt (text :columns 20 :text "Search...")
+        toolbar (toolbar :items [sort-button filter-button pane-button doc-button invoke-button 
+                                 (Box/createHorizontalGlue) search-txt (Box/createHorizontalStrut 2)])]
     (-> toolbar (.setBorder (empty-border :thickness 1)))
+    (-> search-txt (.setMaximumSize (-> search-txt .getPreferredSize)))
     
-    (-> filter-button (.setContentAreaFilled false))
-    (-> doc-button (.setContentAreaFilled false))
-    (-> invoke-button (.setContentAreaFilled false))
+    (-> sort-button (.setFocusPainted false))
+    (-> filter-button (.setFocusPainted false))
+    (-> pane-button (.setFocusPainted false))
+    (-> doc-button (.setFocusPainted false))
+    (-> invoke-button (.setFocusPainted false))
     
-    (-> filter-button (.setToolTipText "View options"))
-    (-> doc-button (.setToolTipText "Open Javadoc (in browser)"))
+    (-> sort-button (.setToolTipText "Sort alphabetically"))
+    (-> filter-button (.setToolTipText "Filtering options..."))
+    (-> pane-button (.setToolTipText "Toggle horizontal/vertical view"))
+    (-> doc-button (.setToolTipText "Search Javadoc"))
     (-> invoke-button (.setToolTipText "(Re)invoke selected method"))
     
-    (-> button-panel (.add filter-button))
-    (-> button-panel (.add doc-button))
-    (-> button-panel (.add invoke-button))
     (listen filter-button :action (fn [e]
-                                    ;(println (-> jtree .getModel))
-                                    ;(-> filter-menu (.show filter-button 10 10))
-                                    (new BalloonTip 
-                                      filter-button
-                                      (label :text "hello")
-                                      (new IsometricBalloonStyle (-> button-panel .getBackground) (color "#268bd2") 5)
-                                      (new LeftBelowPositioner 8 5)
-                                      nil)
-                                    (-> jtree (.setModel (tree-model (new Object))))))
+                                    (if (not (realized? filter-tip))
+                                      ; If opened for the first time, add a listener that hides the menu on mouse exit
+                                      (listen @filter-tip :mouse-exited (fn [e]
+                                            (if (not (-> @filter-tip (.contains (-> e .getPoint))))
+                                                                            (-> @filter-tip (.setVisible false)))))
+                                      (if (-> @filter-tip .isVisible)
+                                        (-> @filter-tip (.setVisible false))
+                                        (-> @filter-tip (.setVisible true))))))
+    (listen pane-button :action (fn [e]
+                                  (if (-> pane-button .isSelected)
+                                    (-> split-pane (.setOrientation 0))
+                                    (-> split-pane (.setOrientation 1)))))
+    (listen doc-button :action (fn [e] (open-javadoc jtree)))
+    (listen search-txt :mouse-clicked (fn [e] (-> search-txt (.setText ""))
+                                        ; Only need to clear the field once; remove the listener
+                                        (-> search-txt (.removeMouseListener (last(-> search-txt (.getMouseListeners)))))))
     toolbar))
 
 (defn bind-keys
@@ -268,7 +294,7 @@
     (-> frame .getRootPane (.registerKeyboardAction
                              (proxy [ActionListener] []
                                (actionPerformed [event]
-                                 (javadoc (-> (-> tree .getLastSelectedPathComponent) .getValueClass))))
+                                 (open-javadoc tree)))
                                  f1Key
                                  JComponent/WHEN_IN_FOCUSED_WINDOW))
     ; Close the window
@@ -278,3 +304,31 @@
                                  (-> frame .dispose)))
                                  escKey
                                  JComponent/WHEN_IN_FOCUSED_WINDOW))))
+
+(defn main-gui ^JFrame [^Object object]
+  "Create and show an Inspector Jay window to inspect a given objects"
+  (let [f (frame :title (str "Object inspector : " (.toString object)) 
+            :size [(gui-options :width) :by (gui-options :height)]
+            :on-close :dispose)
+        obj-info (text :multi-line? true :editable? false :text (to-string-verbose (object-node object)) 
+                   :font (gui-options :font))
+        obj-tree (tree :model (tree-model object))
+        crumbs (label :text (to-string-breadcrumb (object-node object)) :icon (icon (resource "icons/toggle_breadcrumb.gif")))
+        obj-info-scroll (scrollable obj-info)
+        obj-tree-scroll (scrollable obj-tree)
+        split-pane (top-bottom-split obj-info-scroll obj-tree-scroll :divider-location 1/5)
+        toolbar (tool-panel obj-tree split-pane)
+        main-panel (border-panel :north toolbar :south crumbs :center split-pane)]
+    (-> split-pane (.setDividerSize 9))
+    (-> obj-info-scroll (.setBorder (empty-border)))
+    (-> obj-tree-scroll (.setBorder (empty-border)))
+    (doto obj-tree
+      (.setCellRenderer (tree-renderer))
+      (.addTreeSelectionListener (tree-selection-listener obj-info crumbs))
+      (.addTreeExpansionListener (tree-expansion-listener obj-info))
+      (.addTreeWillExpandListener (tree-will-expand-listener)))
+    (bind-keys f obj-tree)
+    (config! f :content main-panel)
+    (-> f show!)
+    (-> obj-tree .requestFocus)
+    f))

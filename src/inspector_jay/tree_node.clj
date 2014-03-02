@@ -1,4 +1,4 @@
-; Copyright (c) 2013 Tim Molderez.
+; Copyright (c) 2013-2014 Tim Molderez.
 ;
 ; All rights reserved. This program and the accompanying materials
 ; are made available under the terms of the 3-Clause BSD License
@@ -14,8 +14,7 @@
 
 (declare ^:dynamic meth-args) ; This declaration is needed so we can make method arguments available inside the delay-function that invokes a method; see method-node..
 
-(defn invoke-method
-  [method object & args]
+(defn invoke-method [method object & args]
   "Call a method on an object via reflection, and return its return value.
    If the call produces an exception, it is caught and returned as the return value instead."
   (try
@@ -108,8 +107,7 @@
      :sequence    The object is can be sequenced. (supports the nth and count functions)
      :collection  The object is any other kind of collection, e.g. a set or map. (supports the seq and count functions)"))
 
-(deftype TreeNode
-  [data]
+(deftype TreeNode [data]
   ITreeNode
   (getValue [this] 
     (force (data :value)))
@@ -168,13 +166,11 @@
       (-> java.util.Map (.isAssignableFrom cls)) :collection
       :else :atom))))
 
-(defn object-node ^TreeNode
-  [^Object object]
+(defn object-node ^TreeNode [^Object object]
   "Create a new generic object node."
   (new TreeNode {:value object}))
 
-(defn method-node ^TreeNode
-  [^Method method ^Object receiver]
+(defn method-node ^TreeNode [^Method method ^Object receiver]
   "Create a method node, given a method and a receiver object.
    The object contained by this node is the return value of invoking the method."
    ; (and
@@ -189,8 +185,7 @@
                                                (invoke-method method receiver)))})))
     ;(new TreeNode {:method method :value nil})))
 
-(defn field-node ^TreeNode
-  [^Field field ^Object receiver]
+(defn field-node ^TreeNode [^Field field ^Object receiver]
   "Create a field node, given a field and a receiver object.
    The object contained by this node is the field's value."
   (-> field (.setAccessible true)) ; Enable access to private fields

@@ -1,4 +1,4 @@
-; Copyright (c) 2013 Tim Molderez.
+; Copyright (c) 2013-2014 Tim Molderez.
 ;
 ; All rights reserved. This program and the accompanying materials
 ; are made available under the terms of the 3-Clause BSD License
@@ -61,7 +61,7 @@
 (defmethod get-child-count :collection [node]
   (if (-> node .hasValue)
     (count (-> node .getValue))
-    0))
+    root))
 
 (defn tree-model ^TreeModel
   [^Object rootObj]
