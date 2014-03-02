@@ -61,7 +61,7 @@
 (defmethod get-child-count :collection [node]
   (if (-> node .hasValue)
     (count (-> node .getValue))
-    root))
+    0))
 
 (defn tree-model ^TreeModel
   [^Object rootObj]

@@ -26,8 +26,8 @@
     [javax.swing.tree DefaultTreeCellRenderer]
     [javax.swing.event TreeSelectionListener TreeExpansionListener TreeWillExpandListener]
     [javax.swing.tree ExpandVetoException]
-    [java.awt Rectangle]
-    [java.awt.event KeyEvent ActionListener]
+    [java.awt Rectangle Toolkit]
+    [java.awt.event KeyEvent ActionListener ActionEvent InputEvent]
     [java.lang.reflect Modifier]
     [net.java.balloontip BalloonTip CustomBalloonTip]
     [net.java.balloontip.positioners LeftAbovePositioner LeftBelowPositioner]
@@ -43,12 +43,12 @@
    :btip-style `(new IsometricBalloonStyle (UIManager/getColor "Panel.background") (color "#268bd2") 5)
    :btip-positioner `(new LeftAbovePositioner 8 5)})
 
-(defmulti to-string
-  "Retrieve a short description of a tree node"
-  (fn [node] (-> node .getKind)))
-
 (defmulti to-string-breadcrumb
   "Retrieve a string to describe a tree node in a path of breadcrumbs"
+  (fn [node] (-> node .getKind)))
+
+(defmulti to-string
+  "Retrieve a short description of a tree node"
   (fn [node] (-> node .getKind)))
 
 (defmulti to-string-verbose
@@ -62,21 +62,6 @@
 (defmulti get-icon
   "Retrieve the icon associated with a tree node"
   (fn [node] (-> node .getKind)))
-
-(defmethod to-string :default [node]
-  (-> node .getValue .toString))
-(defmethod to-string :method [node]
-  (str
-    (-> node .getMethod .getName)
-    "("
-    (join (interpose ", " (map (memfn getSimpleName) (-> node .getMethod .getParameterTypes))))
-    ") : "
-    (-> node .getMethod .getReturnType .getSimpleName)))
-(defmethod to-string :field [node]
-  (str
-    (-> node .getField .getName)
-    " : "
-    (-> node .getValue)))
 
 (defmethod to-string-breadcrumb :default [node]
   (truncate 
@@ -92,6 +77,21 @@
 (defmethod to-string-breadcrumb :field [node]
   (truncate (str (-> node .getField .getName)) 
     (gui-options :crumb-length)))
+
+(defmethod to-string :default [node]
+  (-> node .getValue .toString))
+(defmethod to-string :method [node]
+  (str
+    (-> node .getMethod .getName)
+    "("
+    (join (interpose ", " (map (memfn getSimpleName) (-> node .getMethod .getParameterTypes))))
+    ") : "
+    (-> node .getMethod .getReturnType .getSimpleName)))
+(defmethod to-string :field [node]
+  (str
+    (-> node .getField .getName)
+    " : "
+    (-> node .getValue)))
 
 (defmethod to-string-verbose :default [node]
   (str
@@ -224,20 +224,50 @@
     (if (not= selection nil)
       (javadoc (-> selection .getValueClass)))))
 
-(defn tool-panel ^JToolBar [^JTree jtree ^JSplitPane split-pane]
+(defn- search-tree [^JTree tree ^String key start-row forward include-current]
+  "Search a JTree for the first visible node whose value contains 'key', starting from the node at row 'start-row'.
+   If 'forward' is true, we search forwards; otherwise we search backwards.
+   If a matching node is found, its path is returned; otherwise nil is returned."
+  (let [max-rows (-> tree .getRowCount)
+        ukey (-> key .toUpperCase)
+        increment (if forward 1 -1)
+        start (if include-current start-row (mod (+ start-row increment max-rows) max-rows))]
+    ; Keep looking through all rows until we either find a match, or we're back at the start
+    (loop [row start]
+      (let [path (-> tree (.getPathForRow row))
+            node (to-string (-> path .getLastPathComponent))
+            next-row (mod (+ row increment max-rows) max-rows)]
+        (if (-> node .toUpperCase (.contains ukey))
+          path
+          (if (not= next-row start)
+            (recur next-row)
+            nil))))))
+
+(defn- search-tree-and-select
+  [^JTree tree text forward include-current]
+  (let [start-row (if (-> tree .isSelectionEmpty) 0 (-> tree .getLeadSelectionRow))
+        next-match (search-tree tree text start-row forward include-current)]
+    (if (not= next-match nil)
+      (doto tree
+        (.setSelectionPath next-match)
+        (.scrollPathToVisible next-match))
+      (-> (Toolkit/getDefaultToolkit) .beep))))
+
+(defn tool-panel ^JToolBar [^JFrame frame ^JTree jtree ^JSplitPane split-pane]
   "Create the toolbar of the Inspector Jay window"
   (let [iconSize [24 :by 24] 
         sort-button (toggle :icon (icon (resource "icons/alphab_sort_co.gif")) :size iconSize :selected? true)
         filter-button (button :icon (icon (resource "icons/filter_history.gif")) :size iconSize)
-        filter-panel (vertical-panel :items [(checkbox :text "Methods" :selected? true)
-                                             (checkbox :text "Fields" :selected? true)
-                                             (separator)
-                                             (checkbox :text "Public" :selected? true)
-                                             (checkbox :text "Protected")
-                                             (checkbox :text "Private")
-                                             (separator)
-                                             (checkbox :text "Static")
-                                             (checkbox :text "Inherited")])
+        filter-methods (checkbox :text "Methods" :selected? true)
+        filter-fields (checkbox :text "Fields" :selected? true)
+        filter-public (checkbox :text "Public" :selected? true)
+        filter-protected (checkbox :text "Protected")
+        filter-private (checkbox :text "Private")
+        filter-static (checkbox :text "Static")
+        filter-inherited (checkbox :text "Inherited")
+        filter-panel (vertical-panel :items [filter-methods filter-fields 
+                                             (separator) filter-public filter-protected filter-private
+                                             (separator) filter-static filter-inherited])
         pane-button (toggle :icon (icon (resource "icons/details_view.gif")) :size iconSize :selected? true)
         doc-button (button :icon (icon (resource "icons/javadoc.gif")) :size iconSize)
         invoke-button (button :icon (icon (resource "icons/runlast_co.gif")) :size iconSize)
@@ -262,8 +292,9 @@
     (-> sort-button (.setToolTipText "Sort alphabetically"))
     (-> filter-button (.setToolTipText "Filtering options..."))
     (-> pane-button (.setToolTipText "Toggle horizontal/vertical view"))
-    (-> doc-button (.setToolTipText "Search Javadoc"))
+    (-> doc-button (.setToolTipText "Search Javadoc (F1)"))
     (-> invoke-button (.setToolTipText "(Re)invoke selected method"))
+    (-> search-txt (.setToolTipText "Search visible tree nodes"))
     
     (listen filter-button :action (fn [e]
                                     (if (not (realized? filter-tip))
@@ -279,31 +310,55 @@
                                     (-> split-pane (.setOrientation 0))
                                     (-> split-pane (.setOrientation 1)))))
     (listen doc-button :action (fn [e] (open-javadoc jtree)))
-    (listen search-txt :mouse-clicked (fn [e] (-> search-txt (.setText ""))
-                                        ; Only need to clear the field once; remove the listener
-                                        (-> search-txt (.removeMouseListener (last(-> search-txt (.getMouseListeners)))))))
+    (listen search-txt :focus-gained (fn [e] (-> search-txt (.setText ""))
+                                       ; Only need to clear the field once; remove the listener
+                                       (-> search-txt (.removeFocusListener (last(-> search-txt (.getFocusListeners)))))))
+    (listen search-txt #{:remove-update :insert-update} (fn [e] (search-tree-and-select jtree (-> search-txt .getText) true true)))
+    
+    ; Add key bindings
+    (let [f3-key (KeyStroke/getKeyStroke KeyEvent/VK_F3 0)
+          shift-f3-key (KeyStroke/getKeyStroke KeyEvent/VK_F3 InputEvent/SHIFT_DOWN_MASK)
+          ctrl-f-key (KeyStroke/getKeyStroke KeyEvent/VK_F (-> (Toolkit/getDefaultToolkit) .getMenuShortcutKeyMask))]
+      ; Find next
+      (-> frame .getRootPane (.registerKeyboardAction
+                             (proxy [ActionListener] []
+                               (actionPerformed [e]
+                                 (search-tree-and-select jtree (-> search-txt .getText) true false)))
+                                 f3-key JComponent/WHEN_IN_FOCUSED_WINDOW))
+      ; Find previous
+      (-> frame .getRootPane (.registerKeyboardAction
+                             (proxy [ActionListener] []
+                               (actionPerformed [e]
+                                 (search-tree-and-select jtree (-> search-txt .getText) false false)))
+                                 shift-f3-key JComponent/WHEN_IN_FOCUSED_WINDOW))
+      ; Go to search field (or back to the tree)
+      (-> frame .getRootPane (.registerKeyboardAction
+                             (proxy [ActionListener] []
+                               (actionPerformed [e]
+                                 (if (-> search-txt .hasFocus)
+                                   (-> jtree .requestFocus)
+                                   (-> search-txt .requestFocus))))
+                                 ctrl-f-key JComponent/WHEN_IN_FOCUSED_WINDOW)))
     toolbar))
 
 (defn bind-keys
   [^JFrame frame ^JTree tree]
   "Attach various key bindings to the Inspector Jay window"
   (let
-    [f1Key (KeyStroke/getKeyStroke KeyEvent/VK_F1 0)
-     escKey (KeyStroke/getKeyStroke KeyEvent/VK_ESCAPE 0)]
+    [f1-key (KeyStroke/getKeyStroke KeyEvent/VK_F1 0)
+     esc-key (KeyStroke/getKeyStroke KeyEvent/VK_ESCAPE 0)]
     ; Search javadoc for the currently selected node and open it in a browser window
     (-> frame .getRootPane (.registerKeyboardAction
                              (proxy [ActionListener] []
-                               (actionPerformed [event]
+                               (actionPerformed [e]
                                  (open-javadoc tree)))
-                                 f1Key
-                                 JComponent/WHEN_IN_FOCUSED_WINDOW))
+                                 f1-key JComponent/WHEN_IN_FOCUSED_WINDOW))
     ; Close the window
     (-> frame .getRootPane (.registerKeyboardAction
                              (proxy [ActionListener] []
-                               (actionPerformed [event]
+                               (actionPerformed [e]
                                  (-> frame .dispose)))
-                                 escKey
-                                 JComponent/WHEN_IN_FOCUSED_WINDOW))))
+                                 esc-key JComponent/WHEN_IN_FOCUSED_WINDOW))))
 
 (defn main-gui ^JFrame [^Object object]
   "Create and show an Inspector Jay window to inspect a given objects"
@@ -317,7 +372,7 @@
         obj-info-scroll (scrollable obj-info)
         obj-tree-scroll (scrollable obj-tree)
         split-pane (top-bottom-split obj-info-scroll obj-tree-scroll :divider-location 1/5)
-        toolbar (tool-panel obj-tree split-pane)
+        toolbar (tool-panel f obj-tree split-pane)
         main-panel (border-panel :north toolbar :south crumbs :center split-pane)]
     (-> split-pane (.setDividerSize 9))
     (-> obj-info-scroll (.setBorder (empty-border)))

@@ -10,7 +10,9 @@
   {:author "Tim Molderez"}
   (:import
      [java.lang.reflect Modifier Method Field InvocationTargetException]
-     [clojure.lang Delay]))
+     [clojure.lang Delay])
+  (:use 
+    [clojure.string :only [join]]))
 
 (declare ^:dynamic meth-args) ; This declaration is needed so we can make method arguments available inside the delay-function that invokes a method; see method-node..
 
@@ -68,7 +70,6 @@
 
 (def get-visible-methods-mem (memoize get-visible-fields))
 
-
 (defprotocol ITreeNode
   (getValue [this]
     "Retrieve the Java object contained by this node. (may be nil) In case the object is not available yet, it will be made available now. 
@@ -109,60 +110,60 @@
 
 (deftype TreeNode [data]
   ITreeNode
-  (getValue [this] 
-    (force (data :value)))
-  (hasValue [this]
-    (if (instance? Delay (data :value))
-      (and 
-        (realized? (data :value)) 
-        (not= (deref (data :value)) nil))
-      (not= (data :value) nil)))
-  (mightHaveValue [this]
+ (getValue [this] 
+   (force (data :value)))
+ (hasValue [this]
+   (if (instance? Delay (data :value))
+     (and 
+       (realized? (data :value)) 
+       (not= (deref (data :value)) nil))
+     (not= (data :value) nil)))
+ (mightHaveValue [this]
     (and
       (contains? data :value))
       (not= (data :value) nil))
-  (isValueAvailable [this]
-    (if (instance? Delay (data :value))
-      (realized? (data :value))
-      true))
-  (getValueClass [this]
-    (case (-> this .getKind)
-      :object (-> (data :value) .getClass)
-      :method (-> (data :method) .getReturnType)
-      :field (-> (data :field) .getType)))
-  (getMethod [this]
-    (data :method))
-  (invokeMethod [this args]
-    (binding [meth-args args] ; Makes the method arguments available to the value's delay-function
-    (-> this .getValue)))
-  (getField [this]
-    (data :field))
-  (getMethods [this]
-    (if (not= (-> this .getValue) nil)
-      (get-visible-methods (-> this .getValue .getClass))
-      nil))
-  (getFields [this]
-    (if (not= (-> this .getValue) nil)
-      (get-visible-fields (-> this .getValue .getClass))
-      nil))
-  (countMethods [this]
+ (isValueAvailable [this]
+   (if (instance? Delay (data :value))
+     (realized? (data :value))
+     true))
+ (getValueClass [this]
+   (case (-> this .getKind)
+     :object (-> (data :value) .getClass)
+     :method (-> (data :method) .getReturnType)
+     :field (-> (data :field) .getType)))
+ (getMethod [this]
+   (data :method))
+ (invokeMethod [this args]
+   (binding [meth-args args] ; Makes the method arguments available to the value's delay-function
+   (-> this .getValue)))
+ (getField [this]
+   (data :field))
+ (getMethods [this]
+   (if (not= (-> this .getValue) nil)
+     (get-visible-methods (-> this .getValue .getClass))
+     nil))
+ (getFields [this]
+   (if (not= (-> this .getValue) nil)
+     (get-visible-fields (-> this .getValue .getClass))
+     nil))
+ (countMethods [this]
     (count (-> this .getMethods)))
   (countFields [this]
     (count (-> this .getFields)))
-  (getKind [this]
-    (cond
-      (contains? data :method) :method
+ (getKind [this]
+   (cond
+     (contains? data :method) :method
       (contains? data :field) :field
-      :else :object))
-  (getCollectionKind [this]
-    (let [cls (-> this .getValueClass)]
+     :else :object))
+ (getCollectionKind [this]
+   (let [cls (-> this .getValueClass)]
     (cond
       ; A :sequence is anything that supports the nth function..
-      (-> clojure.lang.Sequential (.isAssignableFrom cls)) :sequence
+     (-> clojure.lang.Sequential (.isAssignableFrom cls)) :sequence
       (-> java.util.RandomAccess (.isAssignableFrom cls)) :sequence
       (-> cls .isArray) :sequence
       ; All collections support the count and seq functions.. 
-      (-> java.util.Collection (.isAssignableFrom cls)) :collection
+     (-> java.util.Collection (.isAssignableFrom cls)) :collection
       (-> java.util.Map (.isAssignableFrom cls)) :collection
       :else :atom))))
 
