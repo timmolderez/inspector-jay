@@ -13,7 +13,7 @@
     [clojure.java.io :only [resource]]
     [clojure.java.javadoc]
     [seesaw
-     [core]
+     [core :exclude [tree-options]]
      [color]
      [border]
      [font]]
@@ -42,6 +42,16 @@
    :crumb-length 20
    :btip-style `(new IsometricBalloonStyle (UIManager/getColor "Panel.background") (color "#268bd2") 5)
    :btip-positioner `(new LeftAbovePositioner 8 5)})
+
+(def tree-options ; Tree filtering options
+  {:sorted true
+   :methods true
+   :fields true
+   :public true
+   :protected false
+   :private false
+   :static true
+   :inherited false})
 
 (defmulti to-string-breadcrumb
   "Retrieve a string to describe a tree node in a path of breadcrumbs"
@@ -156,13 +166,16 @@
   "Update the detailed information panel, as well as the breadcrumbs, whenever a tree node is selected"
   (proxy [TreeSelectionListener] []
     (valueChanged [event]
-      (config! info-panel :text (to-string-verbose (-> event .getNewLeadSelectionPath .getLastPathComponent)))
-      (config! crumbs-panel :text 
-        (str
-          "<html>"
-          (join(interpose "<font color=\"#268bd2\"><b> &gt; </b></font>" 
-                 (map to-string-breadcrumb (-> event .getNewLeadSelectionPath .getPath))))
-          "</html>")))))
+      (let [newPath (-> event .getNewLeadSelectionPath)]
+        (if (not= newPath nil)
+          (let []
+            (config! info-panel :text (to-string-verbose (-> newPath .getLastPathComponent)))
+            (config! crumbs-panel :text 
+              (str
+                "<html>"
+                (join(interpose "<font color=\"#268bd2\"><b> &gt; </b></font>" 
+                       (map to-string-breadcrumb (-> newPath .getPath))))
+                "</html>"))))))))
 
 (defn tree-expansion-listener ^TreeExpansionListener [info-panel]
   "Updates the detailed information panel whenever a node is expanded."
@@ -253,18 +266,28 @@
         (.scrollPathToVisible next-match))
       (-> (Toolkit/getDefaultToolkit) .beep))))
 
-(defn tool-panel ^JToolBar [^JFrame frame ^JTree jtree ^JSplitPane split-pane]
+(defn tool-panel ^JToolBar [^JFrame frame ^Object object ^JTree jtree ^JSplitPane split-pane]
   "Create the toolbar of the Inspector Jay window"
-  (let [iconSize [24 :by 24] 
-        sort-button (toggle :icon (icon (resource "icons/alphab_sort_co.gif")) :size iconSize :selected? true)
+  (let [iconSize [24 :by 24]
+        sort-button (toggle :icon (icon (resource "icons/alphab_sort_co.gif")) :size iconSize :selected? (tree-options :sorted))
         filter-button (button :icon (icon (resource "icons/filter_history.gif")) :size iconSize)
-        filter-methods (checkbox :text "Methods" :selected? true)
-        filter-fields (checkbox :text "Fields" :selected? true)
-        filter-public (checkbox :text "Public" :selected? true)
-        filter-protected (checkbox :text "Protected")
-        filter-private (checkbox :text "Private")
-        filter-static (checkbox :text "Static")
-        filter-inherited (checkbox :text "Inherited")
+        filter-methods (checkbox :text "Methods" :selected? (tree-options :methods))
+        filter-fields (checkbox :text "Fields" :selected? (tree-options :fields))
+        filter-public (checkbox :text "Public" :selected? (tree-options :public))
+        filter-protected (checkbox :text "Protected" :selected? (tree-options :protected))
+        filter-private (checkbox :text "Private" :selected? (tree-options :private))
+        filter-static (checkbox :text "Static" :selected? (tree-options :static))
+        filter-inherited (checkbox :text "Inherited" :selected? (tree-options :inherited))
+        update-filters (fn [e] 
+                         (-> jtree (.setModel (tree-model object {:sorted (-> sort-button .isSelected)
+                                                                  :methods (-> filter-methods .isSelected)
+                                                                  :fields (-> filter-fields .isSelected)
+                                                                  :public (-> filter-public .isSelected)
+                                                                  :protected (-> filter-protected .isSelected)
+                                                                  :private (-> filter-private .isSelected)
+                                                                  :static (-> filter-static .isSelected)
+                                                                  :inherited (-> filter-inherited .isSelected)})))
+                         (-> jtree (.setSelectionPath (-> jtree (.getPathForRow 0)))))
         filter-panel (vertical-panel :items [filter-methods filter-fields 
                                              (separator) filter-public filter-protected filter-private
                                              (separator) filter-static filter-inherited])
@@ -291,54 +314,67 @@
     
     (-> sort-button (.setToolTipText "Sort alphabetically"))
     (-> filter-button (.setToolTipText "Filtering options..."))
-    (-> pane-button (.setToolTipText "Toggle horizontal/vertical view"))
+    (-> pane-button (.setToolTipText "Toggle horizontal/vertical layout"))
     (-> doc-button (.setToolTipText "Search Javadoc (F1)"))
     (-> invoke-button (.setToolTipText "(Re)invoke selected method"))
     (-> search-txt (.setToolTipText "Search visible tree nodes"))
     
+    ; Sort button
+    (listen sort-button :action update-filters)
+    ; Open/close filter options menu
     (listen filter-button :action (fn [e]
                                     (if (not (realized? filter-tip))
                                       ; If opened for the first time, add a listener that hides the menu on mouse exit
                                       (listen @filter-tip :mouse-exited (fn [e]
-                                            (if (not (-> @filter-tip (.contains (-> e .getPoint))))
+                                                                          (if (not (-> @filter-tip (.contains (-> e .getPoint))))
                                                                             (-> @filter-tip (.setVisible false)))))
                                       (if (-> @filter-tip .isVisible)
                                         (-> @filter-tip (.setVisible false))
                                         (-> @filter-tip (.setVisible true))))))
+    ; Filter checkboxes
+    (listen filter-methods :action update-filters)
+    (listen filter-fields :action update-filters)
+    (listen filter-public :action update-filters)
+    (listen filter-protected :action update-filters)
+    (listen filter-private :action update-filters)
+    (listen filter-static :action update-filters)
+    (listen filter-inherited :action update-filters)
+    ; Toggle horizontal/vertical layout
     (listen pane-button :action (fn [e]
                                   (if (-> pane-button .isSelected)
                                     (-> split-pane (.setOrientation 0))
                                     (-> split-pane (.setOrientation 1)))))
+    ; Open javadoc of selected tree node
     (listen doc-button :action (fn [e] (open-javadoc jtree)))
+    ; Clear search field initially
     (listen search-txt :focus-gained (fn [e] (-> search-txt (.setText ""))
-                                       ; Only need to clear the field once; remove the listener
                                        (-> search-txt (.removeFocusListener (last(-> search-txt (.getFocusListeners)))))))
+    ; When typing in the search field, look for matches
     (listen search-txt #{:remove-update :insert-update} (fn [e] (search-tree-and-select jtree (-> search-txt .getText) true true)))
-    
     ; Add key bindings
     (let [f3-key (KeyStroke/getKeyStroke KeyEvent/VK_F3 0)
           shift-f3-key (KeyStroke/getKeyStroke KeyEvent/VK_F3 InputEvent/SHIFT_DOWN_MASK)
           ctrl-f-key (KeyStroke/getKeyStroke KeyEvent/VK_F (-> (Toolkit/getDefaultToolkit) .getMenuShortcutKeyMask))]
       ; Find next
       (-> frame .getRootPane (.registerKeyboardAction
-                             (proxy [ActionListener] []
-                               (actionPerformed [e]
-                                 (search-tree-and-select jtree (-> search-txt .getText) true false)))
-                                 f3-key JComponent/WHEN_IN_FOCUSED_WINDOW))
+                               (proxy [ActionListener] []
+                                 (actionPerformed [e]
+                                   (search-tree-and-select jtree (-> search-txt .getText) true false)))
+                               f3-key JComponent/WHEN_IN_FOCUSED_WINDOW))
       ; Find previous
       (-> frame .getRootPane (.registerKeyboardAction
-                             (proxy [ActionListener] []
-                               (actionPerformed [e]
-                                 (search-tree-and-select jtree (-> search-txt .getText) false false)))
-                                 shift-f3-key JComponent/WHEN_IN_FOCUSED_WINDOW))
+                               (proxy [ActionListener] []
+                                 (actionPerformed [e]
+                                   (search-tree-and-select jtree (-> search-txt .getText) false false)))
+                               shift-f3-key JComponent/WHEN_IN_FOCUSED_WINDOW))
       ; Go to search field (or back to the tree)
       (-> frame .getRootPane (.registerKeyboardAction
-                             (proxy [ActionListener] []
-                               (actionPerformed [e]
-                                 (if (-> search-txt .hasFocus)
-                                   (-> jtree .requestFocus)
-                                   (-> search-txt .requestFocus))))
-                                 ctrl-f-key JComponent/WHEN_IN_FOCUSED_WINDOW)))
+                               (proxy [ActionListener] []
+                                 (actionPerformed [e]
+                                   (if (-> search-txt .hasFocus)
+                                     (-> jtree .requestFocus)
+                                     (-> search-txt .requestFocus))))
+                               ctrl-f-key JComponent/WHEN_IN_FOCUSED_WINDOW)))
     toolbar))
 
 (defn bind-keys
@@ -367,12 +403,12 @@
             :on-close :dispose)
         obj-info (text :multi-line? true :editable? false :text (to-string-verbose (object-node object)) 
                    :font (gui-options :font))
-        obj-tree (tree :model (tree-model object))
+        obj-tree (tree :model (tree-model object tree-options))
         crumbs (label :text (to-string-breadcrumb (object-node object)) :icon (icon (resource "icons/toggle_breadcrumb.gif")))
         obj-info-scroll (scrollable obj-info)
         obj-tree-scroll (scrollable obj-tree)
         split-pane (top-bottom-split obj-info-scroll obj-tree-scroll :divider-location 1/5)
-        toolbar (tool-panel f obj-tree split-pane)
+        toolbar (tool-panel f object obj-tree split-pane)
         main-panel (border-panel :north toolbar :south crumbs :center split-pane)]
     (-> split-pane (.setDividerSize 9))
     (-> obj-info-scroll (.setBorder (empty-border)))

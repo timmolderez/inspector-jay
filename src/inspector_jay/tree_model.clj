@@ -20,10 +20,10 @@
   (fn [node] (-> node .getCollectionKind)))
 (defmulti get-child
   "Get the child of a node at a certain index"
-  (fn [node index] (-> node .getCollectionKind)))
+  (fn [node index opts] (-> node .getCollectionKind)))
 (defmulti get-child-count
   "Get the number of children of a node"
-  (fn [node] (-> node .getCollectionKind)))
+  (fn [node opts] (-> node .getCollectionKind)))
 
 (defmethod is-leaf :default [node]
   (not (-> node .mightHaveValue)))
@@ -36,43 +36,43 @@
     (= 0 (count (-> node .getValue)))
     false))
 
-(defmethod get-child :default [node index]
-  (if (< index (-> node .countMethods))
-    (let
-      [meth (nth (-> node .getMethods) index)]
-      (method-node meth (-> node .getValue)))
-    (let
-      [field-index (- index (-> node .countMethods))
-       field (nth (-> node .getFields) field-index)]
-      (field-node field (-> node .getValue)))))
-(defmethod get-child :sequence [node index]
+(defmethod get-child :default [node index opts]
+  (if (opts :methods)
+    (if (< index (-> node .countMethods))
+      (let [meth (nth (-> node .getMethods) index)] (method-node meth (-> node .getValue)))
+      (let [field-index (- index (-> node .countMethods))
+            field (nth (-> node .getFields) field-index)]
+        (field-node field (-> node .getValue))))
+    (let [field (nth (-> node .getFields) index)] (field-node field (-> node .getValue)))))
+(defmethod get-child :sequence [node index opts]
   (object-node (nth (-> node .getValue) index)))
-(defmethod get-child :collection [node index]
+(defmethod get-child :collection [node index opts]
   (object-node (nth (seq (-> node .getValue)) index)))
 
-(defmethod get-child-count :default [node]
+(defmethod get-child-count :default [node opts]
   (if (-> node .hasValue)
-    (+ (-> node .countMethods) (-> node .countFields))
+    (+ (if (opts :methods) (-> node .countMethods) 0)
+      (if (opts :fields) (-> node .countFields) 0))
     0))
-(defmethod get-child-count :sequence [node]
+(defmethod get-child-count :sequence [node opts]
   (if (-> node .hasValue)
     (count (-> node .getValue))
     0))
-(defmethod get-child-count :collection [node]
+(defmethod get-child-count :collection [node opts]
   (if (-> node .hasValue)
     (count (-> node .getValue))
     0))
 
 (defn tree-model ^TreeModel
-  [^Object rootObj]
-  "Define a tree model around rootObj, which is the object we want to inspect"
+  [^Object root filter-options]
+  "Define a tree model around root, which is the object we want to inspect"
   (proxy [TreeModel] []
-    (getRoot [] (object-node rootObj))
+    (getRoot [] (object-node root))
     (addTreeModelListener [treeModelListener])
     (getChild [parent index]
-      (get-child parent index))
+      (get-child parent index filter-options))
     (getChildCount [parent]
-       (get-child-count parent))
+       (get-child-count parent filter-options))
     (isLeaf [node]
       (is-leaf node))
     (valueForPathChanged [path newValue])
