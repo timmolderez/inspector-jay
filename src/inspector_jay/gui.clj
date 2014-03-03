@@ -168,13 +168,13 @@
     (valueChanged [event]
       (let [newPath (-> event .getNewLeadSelectionPath)]
         (if (not= newPath nil)
-          (let []
+          (do 
             (config! info-panel :text (to-string-verbose (-> newPath .getLastPathComponent)))
             (config! crumbs-panel :text 
               (str
                 "<html>"
-                (join(interpose "<font color=\"#268bd2\"><b> &gt; </b></font>" 
-                       (map to-string-breadcrumb (-> newPath .getPath))))
+                (join (interpose "<font color=\"#268bd2\"><b> &gt; </b></font>" 
+                        (map to-string-breadcrumb (-> newPath .getPath))))
                 "</html>"))))))))
 
 (defn tree-expansion-listener ^TreeExpansionListener [info-panel]
@@ -401,10 +401,9 @@
   (let [f (frame :title (str "Object inspector : " (.toString object)) 
             :size [(gui-options :width) :by (gui-options :height)]
             :on-close :dispose)
-        obj-info (text :multi-line? true :editable? false :text (to-string-verbose (object-node object)) 
-                   :font (gui-options :font))
+        obj-info (text :multi-line? true :editable? false :font (gui-options :font))
         obj-tree (tree :model (tree-model object tree-options))
-        crumbs (label :text (to-string-breadcrumb (object-node object)) :icon (icon (resource "icons/toggle_breadcrumb.gif")))
+        crumbs (label :icon (icon (resource "icons/toggle_breadcrumb.gif")))
         obj-info-scroll (scrollable obj-info)
         obj-tree-scroll (scrollable obj-tree)
         split-pane (top-bottom-split obj-info-scroll obj-tree-scroll :divider-location 1/5)
@@ -417,7 +416,8 @@
       (.setCellRenderer (tree-renderer))
       (.addTreeSelectionListener (tree-selection-listener obj-info crumbs))
       (.addTreeExpansionListener (tree-expansion-listener obj-info))
-      (.addTreeWillExpandListener (tree-will-expand-listener)))
+      (.addTreeWillExpandListener (tree-will-expand-listener))
+      (.setSelectionPath (-> obj-tree (.getPathForRow 0))))
     (bind-keys f obj-tree)
     (config! f :content main-panel)
     (-> f show!)
