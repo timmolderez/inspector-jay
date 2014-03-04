@@ -38,15 +38,15 @@
 
 (defmethod get-child :default [node index opts]
   (if (opts :methods)
-    (if (< index (-> node .countMethods))
+    (if (< index (count (-> node (.getMethods opts))))
       ; Methods always come first; if the index does not go beyond the number of methods, we're retrieving a method
-      (let [meth (nth (-> node .getMethods) index)] (method-node meth (-> node .getValue)))
+      (let [meth (nth (-> node (.getMethods opts)) index)] (method-node meth (-> node .getValue)))
       ; Otherwise, we must be retrieving a field
-      (let [field-index (- index (-> node .countMethods))
-            field (nth (-> node .getFields) field-index)]
+      (let [field-index (- index (count (-> node (.getMethods opts))))
+            field (nth (-> node (.getFields opts)) field-index)]
         (field-node field (-> node .getValue))))
     ; If methods are hidden, we must be retrieving a field
-    (let [field (nth (-> node .getFields) index)] (field-node field (-> node .getValue)))))
+    (let [field (nth (-> node (.getFields opts)) index)] (field-node field (-> node .getValue)))))
 (defmethod get-child :sequence [node index opts]
   (object-node (nth (-> node .getValue) index)))
 (defmethod get-child :collection [node index opts]
@@ -54,8 +54,8 @@
 
 (defmethod get-child-count :default [node opts]
   (if (-> node .hasValue)
-    (+ (if (opts :methods) (-> node .countMethods) 0)
-      (if (opts :fields) (-> node .countFields) 0))
+    (+ (if (opts :methods) (count (-> node (.getMethods opts))) 0)
+      (if (opts :fields) (count (-> node (.getFields opts))) 0))
     0))
 (defmethod get-child-count :sequence [node opts]
   (if (-> node .hasValue)

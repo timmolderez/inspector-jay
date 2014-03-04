@@ -347,10 +347,12 @@
     ; Open javadoc of selected tree node
     (listen doc-button :action (fn [e] (open-javadoc jtree)))
     ; Clear search field initially
-    (listen search-txt :focus-gained (fn [e] (-> search-txt (.setText ""))
+    (listen search-txt :focus-gained (fn [e] 
+                                       (-> search-txt (.setText ""))
                                        (-> search-txt (.removeFocusListener (last(-> search-txt (.getFocusListeners)))))))
     ; When typing in the search field, look for matches
-    (listen search-txt #{:remove-update :insert-update} (fn [e] (search-tree-and-select jtree (-> search-txt .getText) true true)))
+    (listen search-txt #{:remove-update :insert-update} (fn [e]
+                                                          (search-tree-and-select jtree (-> search-txt .getText) true true)))
     ; Add key bindings
     (let [f3-key (KeyStroke/getKeyStroke KeyEvent/VK_F3 0)
           shift-f3-key (KeyStroke/getKeyStroke KeyEvent/VK_F3 InputEvent/SHIFT_DOWN_MASK)

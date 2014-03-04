@@ -8,7 +8,6 @@
                   :exclusions [com.miglayout/miglayout
                                com.jgoodies/forms
                                org.swinglabs.swingx/swingx-core
-                               j18n
                                org.fife.ui/rsyntaxtextarea]]
                  [net.java.balloontip/balloontip "1.2.4.1"]]
   :plugins [[codox "0.6.4"]]

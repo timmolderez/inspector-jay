@@ -24,51 +24,67 @@
     (catch InvocationTargetException e (-> e .getCause))))
 
 (def get-visible-fields 
-  (memoize (fn [cls]
+  (memoize (fn [cls opts]
   "Retrieve all fields that are visible to any instances of class cls.
    More specifically, all fields declared directly in cls, and all public/protected fields found in its ancestor classes."
   (let
     ; All fields declared directly in cls
-    [declFields (-> cls .getDeclaredFields)
+    [declFields (filter (fn [aField]
+                                      (and
+                                        (if (opts :static) true (not (Modifier/isStatic (-> aField .getModifiers))))
+                                        (if (opts :private) true (not (Modifier/isPrivate (-> aField .getModifiers))))
+                                        (if (opts :protected) true (not (Modifier/isProtected (-> aField .getModifiers))))
+                                        (if (opts :public) true (not (Modifier/isPublic (-> aField .getModifiers))))))
+                              (-> cls .getDeclaredFields))
      ; All fields declared in the ancestor classes of cls
-     ancestorFields (if (= java.lang.Object cls)
+     ancestorFields (if (or (= java.lang.Object cls) (not (opts :inherited)))
                       []
-                      (get-visible-fields (-> cls .getSuperclass)))
+                      (get-visible-fields (-> cls .getSuperclass) opts))
      ; Remove all private and hidden fields from ancestorFields
      filteredAncestors (filter (fn [aField]
                                  (and
                                    (not (Modifier/isPrivate (-> aField .getModifiers)))
-                                   ;(not (Modifier/isNative (-> aField .getModifiers)))
                                    (every? (fn [dField] (not= (-> dField .getName) (-> aField .getName)))
                                          declFields)))
                                ancestorFields)]
-    (concat declFields filteredAncestors)))))
+    (concat
+      (if (opts :sorted)
+        (sort-by (memfn getName) declFields)
+        declFields)
+      filteredAncestors)))))
 
 (def get-visible-methods 
-  (memoize (fn [cls]
-  "Retrieve all methods that are visible to any instances of class cls.
+  (memoize (fn [cls opts]
+             "Retrieve all methods that are visible to any instances of class cls.
    More specifically, all methods declared directly in cls, and all public/protected methods found in its ancestor classes."
-  (let
-    ; All methods declared directly in cls
-    [declMethods (-> cls .getDeclaredMethods)
-     ; All methods declared in the ancestor classes of cls
-     ancestorMethods (if (= java.lang.Object cls)
-                      []
-                      (get-visible-methods (-> cls .getSuperclass)))
-     ; Remove all private and hidden methods from ancestorMethods
-     filteredAncestors (filter (fn [aMethod]
-                                 (and
-                                   (not (Modifier/isPrivate (-> aMethod .getModifiers)))
-                                   ;(not (Modifier/isNative (-> aMethod .getModifiers)))
-                                   (every? (fn [dMethod]
-                                             (and
-                                               (not= (-> dMethod .getName) (-> aMethod .getName))
-                                               (not= (-> dMethod .getParameterTypes) (-> aMethod .getParameterTypes))))
-                                         declMethods)))
-                               ancestorMethods)]
-    (concat declMethods filteredAncestors)))))
-
-(def get-visible-methods-mem (memoize get-visible-fields))
+             (let
+               ; All methods declared directly in cls
+               [declMethods (filter (fn [aMethod]
+                                      (and
+                                        (if (opts :static) true (not (Modifier/isStatic (-> aMethod .getModifiers))))
+                                        (if (opts :private) true (not (Modifier/isPrivate (-> aMethod .getModifiers))))
+                                        (if (opts :protected) true (not (Modifier/isProtected (-> aMethod .getModifiers))))
+                                        (if (opts :public) true (not (Modifier/isPublic (-> aMethod .getModifiers))))))
+                              (-> cls .getDeclaredMethods))
+                ; All methods declared in the ancestor classes of cls
+                ancestorMethods (if (or (= java.lang.Object cls) (not (opts :inherited)))
+                                  []
+                                  (get-visible-methods (-> cls .getSuperclass) opts))
+                ; Remove all private and hidden methods from ancestorMethods
+                filteredAncestors (filter (fn [aMethod]
+                                            (and
+                                              (not (Modifier/isPrivate (-> aMethod .getModifiers)))
+                                              (every? (fn [dMethod]
+                                                        (and
+                                                          (not= (-> dMethod .getName) (-> aMethod .getName))
+                                                          (not= (-> dMethod .getParameterTypes) (-> aMethod .getParameterTypes))))
+                                                declMethods)))
+                                    ancestorMethods)]
+               (concat
+                 (if (opts :sorted)
+                   (sort-by (memfn getName) declMethods)
+                   declMethods)
+                 filteredAncestors)))))
 
 (defprotocol ITreeNode
   (getValue [this]
@@ -89,14 +105,10 @@
     "Retrieve this node's value by invoking its method")
   (getField [this]
     "Retrieve the field associated with this node's value. (may be nil)")
-  (getMethods [this]
+  (getMethods [this opts]
     "Retrieve the methods in the node value's class. (if this value is nil, nil is returned)")
-  (getFields [this]
+  (getFields [this opts]
     "Retrieve the fields in the node value's class. (if this value is nil, nil is returned)")
-  (countMethods [this]
-    "Retrieve how many method are in the node value's class.")
-  (countFields [this]
-    "Retrieve how many fields are in the node value's class.")
   (getKind [this]
     "Retrieve a keyword that represents this node:
      :object   This is a generic object node, not associated with a method or a field.
@@ -108,7 +120,7 @@
      :sequence    The object is can be sequenced. (supports the nth and count functions)
      :collection  The object is any other kind of collection, e.g. a set or map. (supports the seq and count functions)"))
 
-(deftype TreeNode [data]
+(defrecord TreeNode [data]
   ITreeNode
  (getValue [this] 
    (force (data :value)))
@@ -138,18 +150,14 @@
    (-> this .getValue)))
  (getField [this]
    (data :field))
- (getMethods [this]
+ (getMethods [this opts]
    (if (not= (-> this .getValue) nil)
-     (get-visible-methods (-> this .getValue .getClass))
+     (get-visible-methods (-> this .getValue .getClass) opts)
      nil))
- (getFields [this]
+ (getFields [this opts]
    (if (not= (-> this .getValue) nil)
-     (get-visible-fields (-> this .getValue .getClass))
+     (get-visible-fields (-> this .getValue .getClass) opts)
      nil))
- (countMethods [this]
-    (count (-> this .getMethods)))
-  (countFields [this]
-    (count (-> this .getFields)))
  (getKind [this]
    (cond
      (contains? data :method) :method
@@ -174,21 +182,15 @@
 (defn method-node ^TreeNode [^Method method ^Object receiver]
   "Create a method node, given a method and a receiver object.
    The object contained by this node is the return value of invoking the method."
-   ; (and
-    ;  (not (Modifier/isNative (-> method .getModifiers))))
-    ;  (not= "void" (-> method .getReturnType .getSimpleName)) 
-    ;  (= 0 (count (-> method .getParameterTypes))))
-    (let []
-      (-> method (.setAccessible true)) ; Enable access to private methods
-      (new TreeNode {:method method :value (delay
-                                             (if (sequential? meth-args)
-                                               (apply invoke-method method receiver meth-args)
-                                               (invoke-method method receiver)))})))
-    ;(new TreeNode {:method method :value nil})))
+  (let []
+    (-> method (.setAccessible true)) ; Enable access to private methods
+    (new TreeNode {:method method :value (delay
+                                           (if (sequential? meth-args)
+                                             (apply invoke-method method receiver meth-args)
+                                             (invoke-method method receiver)))})))
 
 (defn field-node ^TreeNode [^Field field ^Object receiver]
   "Create a field node, given a field and a receiver object.
    The object contained by this node is the field's value."
   (-> field (.setAccessible true)) ; Enable access to private fields
   (new TreeNode {:field field :value (-> field (.get receiver))}))
-
