@@ -118,9 +118,11 @@
     "Determine whether the object in this node represents some kind of collection:
      :atom        The object is not a collection.
      :sequence    The object is can be sequenced. (supports the nth and count functions)
-     :collection  The object is any other kind of collection, e.g. a set or map. (supports the seq and count functions)"))
+     :collection  The object is any other kind of collection, e.g. a set or map. (supports the seq and count functions)")
+  (setData [this newData]
+    "Modify the data contained by this node."))
 
-(defrecord TreeNode [data]
+(deftype TreeNode [^{:volatile-mutable true} data]
   ITreeNode
  (getValue [this] 
    (force (data :value)))
@@ -152,13 +154,13 @@
    (data :field))
  (getMethods [this opts]
    (if (not= (-> this .getValue) nil)
-     (get-visible-methods (-> this .getValue .getClass) opts)
+     (get-visible-methods (-> this .getValue .getClass) (dissoc opts :methods :fields))
      nil))
  (getFields [this opts]
    (if (not= (-> this .getValue) nil)
-     (get-visible-fields (-> this .getValue .getClass) opts)
+     (get-visible-fields (-> this .getValue .getClass) (dissoc opts :methods :fields))
      nil))
- (getKind [this]
+ (getKind [this] 
    (cond
      (contains? data :method) :method
       (contains? data :field) :field
@@ -173,7 +175,9 @@
       ; All collections support the count and seq functions.. 
      (-> java.util.Collection (.isAssignableFrom cls)) :collection
       (-> java.util.Map (.isAssignableFrom cls)) :collection
-      :else :atom))))
+      :else :atom)))
+ (setData [this newData]
+   (set! data newData)))
 
 (defn object-node ^TreeNode [^Object object]
   "Create a new generic object node."
@@ -189,8 +193,13 @@
                                              (apply invoke-method method receiver meth-args)
                                              (invoke-method method receiver)))})))
 
+(defn reset-method-node [^TreeNode node ^Object receiver]
+  "Clear the return value of a method node, and set a new receiver object."
+  (let []
+    )) 
+
 (defn field-node ^TreeNode [^Field field ^Object receiver]
   "Create a field node, given a field and a receiver object.
    The object contained by this node is the field's value."
   (-> field (.setAccessible true)) ; Enable access to private fields
-  (new TreeNode {:field field :value (-> field (.get receiver))}))
+ (new TreeNode {:field field :value (-> field (.get receiver))}))

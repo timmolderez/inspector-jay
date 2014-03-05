@@ -13,6 +13,7 @@
   (:import
      [java.util Collection Map RandomAccess]
      [javax.swing.tree TreeModel]
+     [javax.swing.event TreeModelEvent]
      [java.lang.reflect Method]))
 
 (defmulti is-leaf
@@ -43,7 +44,7 @@
       (let [meth (nth (-> node (.getMethods opts)) index)] (method-node meth (-> node .getValue)))
       ; Otherwise, we must be retrieving a field
       (let [field-index (- index (count (-> node (.getMethods opts))))
-            field (nth (-> node (.getFields opts)) field-index)]
+            field (nth (-> node (.getFields opts)) field-index)] 
         (field-node field (-> node .getValue))))
     ; If methods are hidden, we must be retrieving a field
     (let [field (nth (-> node (.getFields opts)) index)] (field-node field (-> node .getValue)))))
@@ -68,16 +69,22 @@
 
 (defn tree-model ^TreeModel
   [^Object root filter-options]
+   
   "Define a tree model around root, which is the object we want to inspect"
-  (proxy [TreeModel] []
-    (getRoot [] (object-node root))
-    (addTreeModelListener [treeModelListener])
-    (getChild [parent index]
-      (get-child parent index filter-options))
-    (getChildCount [parent]
-       (get-child-count parent filter-options))
-    (isLeaf [node]
-      (is-leaf node))
-    (valueForPathChanged [path newValue])
-    (getIndexOfChild [parent child] -1)
-    (removeTreeModelListener [treeModelListener])))
+  (let [listeners (new java.util.Vector)] 
+    (proxy [TreeModel] []
+      (getRoot [] (object-node root))
+      (addTreeModelListener [treeModelListener]
+        (-> listeners (.add treeModelListener)))
+      (getChild [parent index]
+        (get-child parent index filter-options))
+      (getChildCount [parent]
+        (get-child-count parent filter-options))
+      (isLeaf [node]
+        (is-leaf node))
+      (valueForPathChanged [path newValue]
+        (let [e (new TreeModelEvent newValue path)]
+          (doseq [listener listeners]
+            (-> listener (.treeStructureChanged e)))))
+      (getIndexOfChild [parent child] -1)
+      (removeTreeModelListener [treeModelListener]))))

@@ -39,7 +39,7 @@
   {:width 800
    :height 600
    :font (font :name :sans-serif :style #{:plain})
-   :crumb-length 20
+   :crumb-length 32
    :btip-style `(new IsometricBalloonStyle (UIManager/getColor "Panel.background") (color "#268bd2") 5)
    :btip-positioner `(new LeftAbovePositioner 8 5)})
 
@@ -153,7 +153,7 @@
     (Modifier/isProtected mod) (icon (resource "icons/field_protected_obj.gif"))
     :else (icon (resource "icons/field_default_obj.gif")))))
 
-(defn tree-renderer ^DefaultTreeCellRenderer []
+(defn- tree-renderer ^DefaultTreeCellRenderer []
   "Returns a cell renderer which defines what each tree node should look like"
   (proxy [DefaultTreeCellRenderer] []
     (getTreeCellRendererComponent [tree value selected expanded leaf row hasFocus]
@@ -162,7 +162,7 @@
       (-> this (.setIcon (get-icon value)))
       this)))
 
-(defn tree-selection-listener ^TreeSelectionListener [info-panel crumbs-panel]  
+(defn- tree-selection-listener ^TreeSelectionListener [info-panel crumbs-panel]  
   "Update the detailed information panel, as well as the breadcrumbs, whenever a tree node is selected"
   (proxy [TreeSelectionListener] []
     (valueChanged [event]
@@ -177,14 +177,14 @@
                         (map to-string-breadcrumb (-> newPath .getPath))))
                 "</html>"))))))))
 
-(defn tree-expansion-listener ^TreeExpansionListener [info-panel]
+(defn- tree-expansion-listener ^TreeExpansionListener [info-panel]
   "Updates the detailed information panel whenever a node is expanded."
   (proxy [TreeExpansionListener] []
     (treeExpanded [event]
       (config! info-panel :text (to-string-verbose (-> event .getPath .getLastPathComponent))))
     (treeCollapsed [event])))
 
-(defn tree-will-expand-listener ^TreeWillExpandListener []
+(defn- tree-will-expand-listener ^TreeWillExpandListener []
   "Displays a dialog if the user needs to enter some actual parameters to invoke a method."
   (proxy [TreeWillExpandListener] []
     (treeWillExpand [event]
@@ -266,7 +266,7 @@
         (.scrollPathToVisible next-match))
       (-> (Toolkit/getDefaultToolkit) .beep))))
 
-(defn tool-panel ^JToolBar [^JFrame frame ^Object object ^JTree jtree ^JSplitPane split-pane]
+(defn- tool-panel ^JToolBar [^JFrame frame ^Object object ^JTree jtree ^JSplitPane split-pane]
   "Create the toolbar of the Inspector Jay window"
   (let [iconSize [24 :by 24]
         sort-button (toggle :icon (icon (resource "icons/alphab_sort_co.gif")) :size iconSize :selected? (tree-options :sorted))
@@ -346,6 +346,13 @@
                                     (-> split-pane (.setOrientation 1)))))
     ; Open javadoc of selected tree node
     (listen doc-button :action (fn [e] (open-javadoc jtree)))
+    ; (Re)invoke the selected method
+    (listen invoke-button :action (fn [e]
+                                    (let [selection (-> jtree .getLastSelectedPathComponent)]
+                                      (if (= (-> selection .getKind) :method)
+                                        (do 
+                                          (-> jtree (.collapsePath (-> jtree .getSelectionPath)))
+                                          (-> jtree .getModel (.valueForPathChanged (-> jtree .getSelectionPath) (object-node (new Object)))))))))
     ; Clear search field initially
     (listen search-txt :focus-gained (fn [e] 
                                        (-> search-txt (.setText ""))
@@ -379,7 +386,7 @@
                                ctrl-f-key JComponent/WHEN_IN_FOCUSED_WINDOW)))
     toolbar))
 
-(defn bind-keys
+(defn- bind-keys
   [^JFrame frame ^JTree tree]
   "Attach various key bindings to the Inspector Jay window"
   (let

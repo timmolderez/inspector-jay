@@ -12,14 +12,15 @@
     :name inspectorjay.InspectorJay
     :prefix java-
     :methods [#^{:static true} [inspect [Object] Object]])
-  (:use [inspector-jay.gui]))
+  (:use [inspector-jay.gui])
+  (:import [inspector_jay Test]))
 
 (defn 
   inspect ^Object	[^Object object]
-  "Displays an object inspector window for a given object.
+ "Displays an object inspector window for a given object.
   The return value of inspect is the object itself, so you can plug in this function anywhere you like."
   (main-gui object)
-  object)
+ object)
 
 (defn
   java-inspect [object]
@@ -27,3 +28,5 @@
    When using Java, you can call this function as follows:
    inspectorjay.InspectorJay.inspect(anObject);"
   (inspect object))
+
+(inspect (new Test))
