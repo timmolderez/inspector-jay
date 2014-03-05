@@ -12,8 +12,7 @@
     :name inspectorjay.InspectorJay
     :prefix java-
     :methods [#^{:static true} [inspect [Object] Object]])
-  (:use [inspector-jay.gui])
-  (:import [inspector_jay Test]))
+  (:use [inspector-jay.gui]))
 
 (defn 
   inspect ^Object	[^Object object]
@@ -28,5 +27,3 @@
    When using Java, you can call this function as follows:
    inspectorjay.InspectorJay.inspect(anObject);"
   (inspect object))
-
-(inspect (new Test))

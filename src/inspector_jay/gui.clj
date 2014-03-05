@@ -73,6 +73,10 @@
   "Retrieve the icon associated with a tree node"
   (fn [node] (-> node .getKind)))
 
+(defmulti get-javadoc-class
+  "Retrieve the class that should be used when looking for a node's javadoc"
+  (fn [node] (-> node .getKind)))
+
 (defmethod to-string-breadcrumb :default [node]
   (truncate 
     (-> node .getValue .toString)
@@ -152,6 +156,14 @@
     (Modifier/isPrivate mod) (icon (resource "icons/field_private_obj.gif"))
     (Modifier/isProtected mod) (icon (resource "icons/field_protected_obj.gif"))
     :else (icon (resource "icons/field_default_obj.gif")))))
+
+(defmethod get-javadoc-class :default [node]
+  (-> node .getValueClass))
+(defmethod get-javadoc-class :method [node]
+  (-> node .getMethod .getDeclaringClass))
+(defmethod get-javadoc-class :field [node]
+  (-> node .getField .getDeclaringClass))
+
 
 (defn- tree-renderer ^DefaultTreeCellRenderer []
   "Returns a cell renderer which defines what each tree node should look like"
@@ -235,7 +247,7 @@
   "Search Javadoc for the selected node (if present)"
   (let [selection (-> jtree .getLastSelectedPathComponent)]
     (if (not= selection nil)
-      (javadoc (-> selection .getValueClass)))))
+      (javadoc (get-javadoc-class selection)))))
 
 (defn- search-tree [^JTree tree ^String key start-row forward include-current]
   "Search a JTree for the first visible node whose value contains 'key', starting from the node at row 'start-row'.
@@ -294,6 +306,7 @@
         pane-button (toggle :icon (icon (resource "icons/details_view.gif")) :size iconSize :selected? true)
         doc-button (button :icon (icon (resource "icons/javadoc.gif")) :size iconSize)
         invoke-button (button :icon (icon (resource "icons/runlast_co.gif")) :size iconSize)
+        refresh-button (button :icon (icon (resource "icons/nav_refresh.gif")) :size iconSize)
         filter-tip (delay (new BalloonTip 
                             filter-button
                             filter-panel
@@ -301,7 +314,7 @@
                             (eval (gui-options :btip-positioner))
                             nil))
         search-txt (text :columns 20 :text "Search...")
-        toolbar (toolbar :items [sort-button filter-button pane-button doc-button invoke-button 
+        toolbar (toolbar :items [sort-button filter-button pane-button doc-button invoke-button refresh-button
                                  (Box/createHorizontalGlue) search-txt (Box/createHorizontalStrut 2)])]
     (-> toolbar (.setBorder (empty-border :thickness 1)))
     (-> search-txt (.setMaximumSize (-> search-txt .getPreferredSize)))
@@ -311,12 +324,14 @@
     (-> pane-button (.setFocusPainted false))
     (-> doc-button (.setFocusPainted false))
     (-> invoke-button (.setFocusPainted false))
+    (-> refresh-button (.setFocusPainted false))
     
     (-> sort-button (.setToolTipText "Sort alphabetically"))
     (-> filter-button (.setToolTipText "Filtering options..."))
     (-> pane-button (.setToolTipText "Toggle horizontal/vertical layout"))
     (-> doc-button (.setToolTipText "Search Javadoc (F1)"))
     (-> invoke-button (.setToolTipText "(Re)invoke selected method"))
+    (-> refresh-button (.setToolTipText "Refresh tree"))
     (-> search-txt (.setToolTipText "Search visible tree nodes"))
     
     ; Sort button
@@ -348,11 +363,16 @@
     (listen doc-button :action (fn [e] (open-javadoc jtree)))
     ; (Re)invoke the selected method
     (listen invoke-button :action (fn [e]
-                                    (let [selection (-> jtree .getLastSelectedPathComponent)]
+                                    (let [selection (-> jtree .getLastSelectedPathComponent)
+                                          selection-path (-> jtree .getSelectionPath)
+                                          selection-row (-> jtree  (.getRowForPath selection-path))]
                                       (if (= (-> selection .getKind) :method)
                                         (do 
-                                          (-> jtree (.collapsePath (-> jtree .getSelectionPath)))
-                                          (-> jtree .getModel (.valueForPathChanged (-> jtree .getSelectionPath) (object-node (new Object)))))))))
+                                          (-> jtree (.collapsePath selection-path))
+                                          (-> jtree .getModel (.valueForPathChanged selection-path (object-node (new Object))))
+                                          (-> jtree (.expandRow selection-row)))))))
+    ; Refresh the tree
+    (listen refresh-button :action update-filters)
     ; Clear search field initially
     (listen search-txt :focus-gained (fn [e] 
                                        (-> search-txt (.setText ""))

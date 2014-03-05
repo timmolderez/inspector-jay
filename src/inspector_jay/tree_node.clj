@@ -118,11 +118,9 @@
     "Determine whether the object in this node represents some kind of collection:
      :atom        The object is not a collection.
      :sequence    The object is can be sequenced. (supports the nth and count functions)
-     :collection  The object is any other kind of collection, e.g. a set or map. (supports the seq and count functions)")
-  (setData [this newData]
-    "Modify the data contained by this node."))
+     :collection  The object is any other kind of collection, e.g. a set or map. (supports the seq and count functions)"))
 
-(deftype TreeNode [^{:volatile-mutable true} data]
+(deftype TreeNode [data]
   ITreeNode
  (getValue [this] 
    (force (data :value)))
@@ -149,7 +147,7 @@
    (data :method))
  (invokeMethod [this args]
    (binding [meth-args args] ; Makes the method arguments available to the value's delay-function
-   (-> this .getValue)))
+  (-> this .getValue)))
  (getField [this]
    (data :field))
  (getMethods [this opts]
@@ -169,15 +167,13 @@
    (let [cls (-> this .getValueClass)]
     (cond
       ; A :sequence is anything that supports the nth function..
-     (-> clojure.lang.Sequential (.isAssignableFrom cls)) :sequence
+    (-> clojure.lang.Sequential (.isAssignableFrom cls)) :sequence
       (-> java.util.RandomAccess (.isAssignableFrom cls)) :sequence
       (-> cls .isArray) :sequence
       ; All collections support the count and seq functions.. 
-     (-> java.util.Collection (.isAssignableFrom cls)) :collection
+    (-> java.util.Collection (.isAssignableFrom cls)) :collection
       (-> java.util.Map (.isAssignableFrom cls)) :collection
-      :else :atom)))
- (setData [this newData]
-   (set! data newData)))
+      :else :atom))))
 
 (defn object-node ^TreeNode [^Object object]
   "Create a new generic object node."
