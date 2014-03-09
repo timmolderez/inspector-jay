@@ -37,8 +37,8 @@
 (native!) ; Use the OS's native look and feel
 
 (def gui-options ; Inspector Jay GUI options
-  {:width 800
-   :height 600
+  {:width 722
+   :height 432
    :font (font :name :sans-serif :style #{:plain})
    :crumb-length 32
    :btip-style `(new IsometricBalloonStyle (UIManager/getColor "Panel.background") (color "#268bd2") 5)
@@ -130,19 +130,21 @@
                            (eval (gui-options :btip-positioner))
                            nil)
                     ok-handler (fn [e]
-                                 (let [args (for [i (range 0 (count param-boxes))]
-                                              (let [value (eval (read-string (-> (nth param-boxes i) .getText)))
-                                                    type (nth param-types i)]
-                                                (cond
-                                                  (= type java.lang.Short) (short value) ; Convert long to short
-                                                  (= type java.lang.Float) (float value) ; Convert double to float
-                                                  (= type java.lang.Integer) (int value) ; Convert long to int
-                                                  :else value)))]
-                                   (-> node (.invokeMethod args))
-                                   (-> btip .closeBalloon)
-                                   (-> jtree (.expandPath (-> event .getPath)))
-                                   (-> jtree (.setSelectionPath (-> event .getPath))) 
-                                   (-> jtree .requestFocus)))
+                                 (try (let [args (for [i (range 0 (count param-boxes))]
+                                                   (let [value (eval (read-string (-> (nth param-boxes i) .getText)))
+                                                         type (nth param-types i)]
+                                                     (cond
+                                                       (= type java.lang.Short) (short value) ; Convert long to short
+                                                       (= type java.lang.Float) (float value) ; Convert double to float
+                                                       (= type java.lang.Integer) (int value) ; Convert long to int
+                                                       :else value)))]
+                                        (doseq [x args] x) ; If something went wrong with the arguments, this should trigger the exception before attempting an invocation..
+                                        (-> node (.invokeMethod args))
+                                        (-> btip .closeBalloon)
+                                        (-> jtree (.expandPath (-> event .getPath)))
+                                        (-> jtree (.setSelectionPath (-> event .getPath))) 
+                                        (-> jtree .requestFocus))
+                                   (catch Exception e (-> (Toolkit/getDefaultToolkit) .beep))))
                     cancel-handler (fn [e] 
                                      (-> btip .closeBalloon)
                                      (-> jtree .requestFocus))
@@ -175,7 +177,8 @@
       (do 
         (-> jtree (.collapsePath selection-path))
         (-> jtree .getModel (.valueForPathChanged selection-path (object-node (new Object))))
-        (-> jtree (.expandRow selection-row))))))
+        (-> jtree (.expandRow selection-row))
+        (-> jtree (.setSelectionRow selection-row))))))
 
 (defn- search-tree [^JTree tree ^String key start-row forward include-current]
   "Search a JTree for the first visible node whose value contains 'key', starting from the node at row 'start-row'.
