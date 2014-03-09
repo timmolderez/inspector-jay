@@ -42,10 +42,11 @@ If you're using **Java**, you can call Inspector Jay as follows:
 inspectorjay.InspectoryJay.inspect(new java.io.File("."));
 ```
 
-Note that Inspector Jay windows are also keyboard-friendly:
+Note that Inspector Jay windows are also quite keyboard-friendly:
 - Use the arrow keys to navigate the tree. 
-- Press Ctrl+F to toggle focus between the search field and the tree. (F3 / Shift-F3 )
-- Press F1 to look for any Javadoc documentation of the current node's type. (opens in a browser window)
+- Press Ctrl+F to toggle focus between the search field and the tree. (F3 / Shift-F3 moves to the next/previous search result)
+- Press F4 to (re)invoke the currently selected method.
+- Press F1 to look for Javadoc documentation of the currently selected node. (opens in a browser window)
 
 ### License
 
