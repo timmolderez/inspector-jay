@@ -12,9 +12,9 @@ Inspector Jay is an inspection utility that can help you to debug and/or underst
 
 ### Installation
 
-If you're using **Leiningen**, add `[inspector-jay "0.2"]` to the dependencies in your `project.clj` file.
+If you're using [**Leiningen**](https://github.com/technomancy/leiningen), add `[inspector-jay "0.2"]` to the dependencies in your `project.clj` file.
 
-If you're using **Maven**, add the following dependency to your `pom.xml` file:
+If you're using [**Maven**](http://maven.apache.org/), add the following dependency to your `pom.xml` file:
 
 ```xml
 <dependency>
