@@ -27,7 +27,7 @@
   "Retrieve a short description of a tree node"
   (fn [node] (-> node .getKind)))
 
-(def crumb-length 32)
+(def crumb-length 32) ; Max length of a single breadcrumb
 (defmulti to-string-breadcrumb
   "Retrieve a string to describe a tree node in a path of breadcrumbs"
   (fn [node] (-> node .getKind)))

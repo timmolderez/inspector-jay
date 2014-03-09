@@ -14,7 +14,7 @@
   (:use 
     [clojure.string :only [join]]))
 
-(declare ^:dynamic meth-args) ; This declaration is needed so we can make method arguments available inside the delay-function that invokes a method; see method-node..
+(declare ^:dynamic meth-args) ; This declaration is needed so we can make method arguments available inside the delay-function that invokes a method (see method-node)
 
 (defn invoke-method [method object & args]
   "Call a method on an object via reflection, and return its return value.
@@ -25,30 +25,31 @@
 
 (def get-visible-fields 
   (memoize (fn [cls opts]
-  "Retrieve all fields that are visible to any instances of class cls.
-   More specifically, all fields declared directly in cls, and all public/protected fields found in its ancestor classes."
-  (let
-    ; All fields declared directly in cls
-    [declFields (filter (fn [aField]
-                                      (and
-                                        (if (opts :static) true (not (Modifier/isStatic (-> aField .getModifiers))))
-                                        (if (opts :private) true (not (Modifier/isPrivate (-> aField .getModifiers))))
-                                        (if (opts :protected) true (not (Modifier/isProtected (-> aField .getModifiers))))
-                                        (if (opts :public) true (not (Modifier/isPublic (-> aField .getModifiers))))))
-                              (-> cls .getDeclaredFields))
-     ; All fields declared in the ancestor classes of cls
-     ancestorFields (if (or (= java.lang.Object cls) (not (opts :inherited)))
-                      []
-                      (get-visible-fields (-> cls .getSuperclass) opts))
-     ; Remove all private and hidden fields from ancestorFields
-     filteredAncestors (filter (fn [aField]
-                                 (and
-                                   (not (Modifier/isPrivate (-> aField .getModifiers)))
-                                   (every? (fn [dField] (not= (-> dField .getName) (-> aField .getName)))
-                                         declFields)))
-                               ancestorFields)]
-    (concat
-      (if (opts :sorted)
+             "Retrieve all fields that are visible to any instances of class cls.
+              More specifically, all fields declared directly in cls, and all public/protected fields found in its ancestor classes.
+              (This function is memoized, as it may trigger a lot of reflective calls.)"
+             (let
+               ; All fields declared directly in cls
+               [declFields (filter (fn [aField]
+                                     (and
+                                       (if (opts :static) true (not (Modifier/isStatic (-> aField .getModifiers))))
+                                       (if (opts :private) true (not (Modifier/isPrivate (-> aField .getModifiers))))
+                                       (if (opts :protected) true (not (Modifier/isProtected (-> aField .getModifiers))))
+                                       (if (opts :public) true (not (Modifier/isPublic (-> aField .getModifiers))))))
+                             (-> cls .getDeclaredFields))
+                ; All fields declared in the ancestor classes of cls
+                ancestorFields (if (or (= java.lang.Object cls) (not (opts :inherited)))
+                                 []
+                                 (get-visible-fields (-> cls .getSuperclass) opts))
+                ; Remove all private and hidden fields from ancestorFields
+                filteredAncestors (filter (fn [aField]
+                                            (and
+                                              (not (Modifier/isPrivate (-> aField .getModifiers)))
+                                              (every? (fn [dField] (not= (-> dField .getName) (-> aField .getName)))
+                                                declFields)))
+                                    ancestorFields)]
+               (concat
+                 (if (opts :sorted)
         (sort-by (memfn getName) declFields)
         declFields)
       filteredAncestors)))))
@@ -56,7 +57,8 @@
 (def get-visible-methods 
   (memoize (fn [cls opts]
              "Retrieve all methods that are visible to any instances of class cls.
-   More specifically, all methods declared directly in cls, and all public/protected methods found in its ancestor classes."
+              More specifically, all methods declared directly in cls, and all public/protected methods found in its ancestor classes.
+              (This function is memoized, as it may trigger a lot of reflective calls.)"
              (let
                ; All methods declared directly in cls
                [declMethods (filter (fn [aMethod]

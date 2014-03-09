@@ -6,7 +6,7 @@
 ; http://www.opensource.org/licenses/BSD-3-Clause
 
 (ns inspector-jay.gui.gui
-  "Defines Inspector Jay's graphical components"
+  "Defines Inspector Jay's graphical user interface"
   {:author "Tim Molderez"}
   (:use 
     [clojure.string :only [join]]
@@ -32,16 +32,18 @@
     [java.awt.event KeyEvent ActionListener ActionEvent InputEvent]
     [net.java.balloontip BalloonTip CustomBalloonTip]
     [net.java.balloontip.positioners LeftAbovePositioner LeftBelowPositioner]
-    [net.java.balloontip.styles IsometricBalloonStyle]))
+    [net.java.balloontip.styles IsometricBalloonStyle]
+    [net.java.balloontip.utils TimingUtils]))
 
 (native!) ; Use the OS's native look and feel
 
 (def gui-options ; Inspector Jay GUI options
-  {:width 722
-   :height 432
+  {:width 1024
+   :height 768
    :font (font :name :sans-serif :style #{:plain})
    :crumb-length 32
    :btip-style `(new IsometricBalloonStyle (UIManager/getColor "Panel.background") (color "#268bd2") 5)
+   :btip-error-style `(new IsometricBalloonStyle (UIManager/getColor "Panel.background") (color "#d32e27") 3)
    :btip-positioner `(new LeftAbovePositioner 8 5)})
 
 (def tree-options ; Tree filtering options
@@ -97,7 +99,7 @@
             (-> node .getValue)
             ; Otherwise we'll need to ask the user to enter some parameter values
             (let [raw-types (-> node .getMethod .getParameterTypes)
-                  ; Swap primitive types for their corresponding wrappers
+                  ; Swap Java's primitive types for their corresponding wrappers
                   param-types (for [x raw-types]
                                 (let [type (-> x .toString)]
                                   (cond
@@ -122,44 +124,58 @@
               (-> params (.add (label "Enter parameter values to call this method:")))
               (doseq [x param-boxes]
                 (-> params (.add x)))
-              (let [btip (new CustomBalloonTip 
+              (let [; Form to enter paramter values
+                    btip (new CustomBalloonTip 
                            jtree
                            border-panel
                            (-> jtree (.getPathBounds (-> event .getPath)))
                            (eval (gui-options :btip-style))
                            (eval (gui-options :btip-positioner))
                            nil)
+                    ; Button to submit the form, and invoke the requested method
                     ok-handler (fn [e]
                                  (try (let [args (for [i (range 0 (count param-boxes))]
-                                                   (let [value (eval (read-string (-> (nth param-boxes i) .getText)))
-                                                         type (nth param-types i)]
-                                                     (cond
-                                                       (= type java.lang.Short) (short value) ; Convert long to short
-                                                       (= type java.lang.Float) (float value) ; Convert double to float
-                                                       (= type java.lang.Integer) (int value) ; Convert long to int
-                                                       :else value)))]
+                                                   ; Try to evaluate the expression to obtain the current parameter's value
+                                                   (try 
+                                                     (let [value (eval (read-string (-> (nth param-boxes i) .getText)))
+                                                           type (nth param-types i)]
+                                                       (cond
+                                                         (= type java.lang.Short) (short value) ; Convert long to short
+                                                         (= type java.lang.Float) (float value) ; Convert double to float
+                                                         (= type java.lang.Integer) (int value) ; Convert long to int
+                                                         :else value))
+                                                     (catch Exception e (do
+                                                                          (TimingUtils/showTimedBalloon (new BalloonTip 
+                                                                                                          (nth param-boxes i)
+                                                                                                          (label (-> e .getMessage))
+                                                                                                          (eval (gui-options :btip-error-style))
+                                                                                                          (eval (gui-options :btip-positioner))
+                                                                                                          nil)
+                                                                            3000)
+                                                                          (-> (Toolkit/getDefaultToolkit) .beep)
+                                                                          (throw (Exception.))))))]
                                         (doseq [x args] x) ; If something went wrong with the arguments, this should trigger the exception before attempting an invocation..
                                         (-> node (.invokeMethod args))
                                         (-> btip .closeBalloon)
                                         (-> jtree (.expandPath (-> event .getPath)))
                                         (-> jtree (.setSelectionPath (-> event .getPath))) 
                                         (-> jtree .requestFocus))
-                                   (catch Exception e (-> (Toolkit/getDefaultToolkit) .beep))))
-                    cancel-handler (fn [e] 
+                                   (catch Exception e )))
+                    cancel-handler (fn [e]
                                      (-> btip .closeBalloon)
                                      (-> jtree .requestFocus))
-                    enter-handler (fn [e]
-                                    (cond 
-                                      (= (-> e .getKeyCode) KeyEvent/VK_ENTER) (ok-handler e)
-                                      (= (-> e .getKeyCode) KeyEvent/VK_ESCAPE) (cancel-handler e)))]
+                    key-handler (fn [e]
+                                  (cond 
+                                    (= (-> e .getKeyCode) KeyEvent/VK_ENTER) (ok-handler e)
+                                    (= (-> e .getKeyCode) KeyEvent/VK_ESCAPE) (cancel-handler e)))]
                 (-> (first param-boxes) .requestFocus)
                 (doseq [x param-boxes]
-                  (listen x :key-pressed enter-handler))
+                  (listen x :key-pressed key-handler))
                 (listen cancel-button :action (fn [e] 
                                                 (-> btip .closeBalloon)
                                                 (-> jtree .requestFocus)))
                 (listen ok-button :action ok-handler))
-              (throw (new ExpandVetoException event))))))) ; Deny expanding the tree node; it will be expanded once the value is available
+              (throw (new ExpandVetoException event))))))) ; Deny expanding the tree node; it will only be expanded once the value is available
     (treeWillCollapse [event])))
 
 (defn- open-javadoc [jtree]
@@ -182,7 +198,7 @@
 
 (defn- search-tree [^JTree tree ^String key start-row forward include-current]
   "Search a JTree for the first visible node whose value contains 'key', starting from the node at row 'start-row'.
-   If 'forward' is true, we search forwards; otherwise we search backwards.
+   If 'forward' is true, we search going forward; otherwise we search backwards.
    If a matching node is found, its path is returned; otherwise nil is returned."
   (let [max-rows (-> tree .getRowCount)
         ukey (-> key .toUpperCase)
@@ -222,6 +238,7 @@
         filter-private (checkbox :text "Private" :selected? (tree-options :private))
         filter-static (checkbox :text "Static" :selected? (tree-options :static))
         filter-inherited (checkbox :text "Inherited" :selected? (tree-options :inherited))
+        ; Refresh the inspector tree given the current options in the filter menu
         update-filters (fn [e] 
                          (-> jtree (.setModel (tree-model object {:sorted (-> sort-button .isSelected)
                                                                   :methods (-> filter-methods .isSelected)
@@ -250,14 +267,14 @@
                                  (Box/createHorizontalGlue) search-txt (Box/createHorizontalStrut 2)])]
     (-> toolbar (.setBorder (empty-border :thickness 1)))
     (-> search-txt (.setMaximumSize (-> search-txt .getPreferredSize)))
-    
+    ; Ditch the redundant dotted rectangle when a button is focused 
     (-> sort-button (.setFocusPainted false))
     (-> filter-button (.setFocusPainted false))
     (-> pane-button (.setFocusPainted false))
     (-> doc-button (.setFocusPainted false))
     (-> invoke-button (.setFocusPainted false))
     (-> refresh-button (.setFocusPainted false))
-    
+    ; Set tooltips
     (-> sort-button (.setToolTipText "Sort alphabetically"))
     (-> filter-button (.setToolTipText "Filtering options..."))
     (-> pane-button (.setToolTipText "Toggle horizontal/vertical layout"))
@@ -265,7 +282,6 @@
     (-> invoke-button (.setToolTipText "(Re)invoke selected method (F4)"))
     (-> refresh-button (.setToolTipText "Refresh tree"))
     (-> search-txt (.setToolTipText "Search visible tree nodes (F3 / Shift-F3)"))
-    
     ; Sort button
     (listen sort-button :action update-filters)
     ; Open/close filter options menu
@@ -375,7 +391,7 @@
                              ctrl-f-key JComponent/WHEN_IN_FOCUSED_WINDOW))))
 
 (defn inspector-panel ^JPanel [^Object object]
-  "Create and show an Inspector Jay window to inspect a given objects"
+  "Create and show an Inspector Jay window to inspect a given object"
   (let [obj-info (text :multi-line? true :editable? false :font (gui-options :font))
         obj-tree (tree :model (tree-model object tree-options))
         crumbs (label :icon (icon (resource "icons/toggle_breadcrumb.gif")))
@@ -395,7 +411,7 @@
       (.setSelectionPath (-> obj-tree (.getPathForRow 0))))
     main-panel))
 
-; All open Inspector Jay windows
+; List of all open Inspector Jay windows
 (def jay-windows (new java.util.Vector))
 
 (defn inspector-window [object & args]
@@ -415,7 +431,7 @@
         (listen window :window-closed (fn [e] (-> jay-windows (.remove window))))
         (-> window show!)
         (-> (get-jtree panel) .requestFocus))
-      ; Add a new tab
+      ; Otherwise, add a new tab
       (let [window (last jay-windows)
             content (-> window .getContentPane)
             isTabbed (instance? JTabbedPane content)
@@ -429,7 +445,7 @@
             ; When switching tabs, adjust the window title, and focus on the tree
             (listen tabs :change (fn [e]
                                    (let [tree (get-jtree (get-selected-tab window))
-                                         title (truncate (-> tree .getModel .getRoot .getValue .toString) 20)]
+                                         title (-> tree .getModel .getRoot .getValue .toString)]
                                      (-> window (.setTitle title))
                                      (-> tree .requestFocus))))))
         (doto (-> window .getContentPane)
