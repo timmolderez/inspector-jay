@@ -15,10 +15,11 @@
   (:use [inspector-jay.gui.gui]))
 
 (defn inspect ^Object	[^Object object & args]
- "Displays an object inspector window for a given object.
+  "Displays an object inspector window for a given object.
   The return value of inspect is the object itself, so you can plug in this function anywhere you like."
-  (apply inspector-window object args)
- object)
+  (if (not= object nil) 
+    (apply inspector-window object args))
+  object)
 
 (defn java-inspect [object]
   "Java wrapper for the inspect function.
