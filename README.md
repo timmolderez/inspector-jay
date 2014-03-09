@@ -8,7 +8,7 @@ Inspector Jay is an inspection utility that can help you to debug and/or underst
 - Similar to `clojure.inspector`, Inspector Jay can examine Clojure data structures and Java collections.
 - Inspector Jay can be used in both Clojure and Java applications.
 
-![adbc logo](https://raw.github.com/timmolderez/inspector-jay/master/resources/images/screenshot-edit.png)
+![Inspector Jay logo](https://raw.github.com/timmolderez/inspector-jay/master/resources/images/screenshot-edit.png)
 
 ### Installation
 
@@ -25,6 +25,8 @@ If you're using [**Maven**](http://maven.apache.org/), add the following depende
 ```
 
 Finally, you can also [**download Inspector Jay** as a stand-alone .jar](http://timmolderez.be/builds/inspector-jay/) file.
+
+To find out what's new in the latest version of Inspector Jay, have a look at the [release notes](https://github.com/timmolderez/inspector-jay/blob/master/RELEASES.txt).
 
 ### Usage
 
@@ -47,7 +49,7 @@ Note that Inspector Jay windows are also quite keyboard-friendly:
 - Press Ctrl+F to toggle focus between the search field and the tree.  
   F3 / Shift-F3 moves to the next/previous search result.
 - Press F4 to (re)invoke the currently selected method.
-- Press F1 to look for Javadoc documentation of the currently selected node. (opens in a browser window)
+- Press F1 to look for Javadoc documentation of the currently selected node.
 
 ### License
 
