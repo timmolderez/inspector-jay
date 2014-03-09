@@ -1,6 +1,20 @@
 Release notes
 -------------
 
+v0.2
+----
+
+* New feature - Support for tabs; whenever inspect is called, the inspector is opened as a new tab
+* New feature - Added filtering menu (show/hide public/protected/private/static/inherited members)
+* New feature - Added search-as-you-type text field
+* New feature - Sort members alphabetically
+* New feature - Toggle horizontal/vertical layout
+* New feature - Re-invoke methods that have already been called (so you can e.g. enter different parameter values)
+* New feature - Added refresh button (so you can see changes to the object's state)
+* Bug fixed - Exception when inspecting an empty list or nil
+* Bug fixed - Exceptions caught when entering faulty code in parameter text boxes
+* Change - Javadoc button opens documentation for declaring class, rather than type of a method's return value
+
 v0.1.5
 ------
 
