@@ -1,7 +1,7 @@
 Inspector Jay
 =============
 
-Inspector Jay lets you inspect Java objects and Clojure data structures with a simple graphical user interface.
+Inspector Jay is an inspection utility that can help you to debug and/or understand Clojure/Java code. Just pass an object or data structure to the `inspect` function and you can quickly examine its contents in a simple graphical user interface.
 
 - Inspect just about anything that is reachable from an object by navigating Inspector Jay's tree structure.
 - Examine the field values of objects, as well as the return values (or even exceptions) of invoked methods.
@@ -12,7 +12,7 @@ Inspector Jay lets you inspect Java objects and Clojure data structures with a s
 
 ### Installation
 
-If you're using **Leiningen**, add `[inspector-jay "0.1.0"]` to the dependencies in your `project.clj` file.
+If you're using **Leiningen**, add `[inspector-jay "0.2"]` to the dependencies in your `project.clj` file.
 
 If you're using **Maven**, add the following dependency to your `pom.xml` file:
 
@@ -20,11 +20,11 @@ If you're using **Maven**, add the following dependency to your `pom.xml` file:
 <dependency>
   <groupId>inspector-jay</groupId>
   <artifactId>inspector-jay</artifactId>
-  <version>0.1.0</version>
+  <version>0.2</version>
 </dependency>
 ```
 
-Finally, you can also [download Inspector Jay as a stand-alone .jar](http://timmolderez.be/builds/inspector-jay/) file.
+Finally, you can also [**download Inspector Jay** as a stand-alone .jar](http://timmolderez.be/builds/inspector-jay/) file.
 
 ### Usage
 
@@ -44,7 +44,7 @@ inspectorjay.InspectoryJay.inspect(new java.io.File("."));
 
 Note that Inspector Jay windows are also keyboard-friendly:
 - Use the arrow keys to navigate the tree. 
-- Press Esc to close the window.
+- Press Ctrl+F to toggle focus between the search field and the tree. (F3 / Shift-F3 )
 - Press F1 to look for any Javadoc documentation of the current node's type. (opens in a browser window)
 
 ### License
