@@ -5,7 +5,7 @@
 ; which accompanies this distribution, and is available at
 ; http://www.opensource.org/licenses/BSD-3-Clause
 
-(ns inspector-jay.tree-node
+(ns inspector-jay.model.tree-node
   "Defines the data structure of a tree node"
   {:author "Tim Molderez"}
   (:import

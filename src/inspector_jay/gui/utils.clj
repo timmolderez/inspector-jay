@@ -5,7 +5,7 @@
 ; which accompanies this distribution, and is available at
 ; http://www.opensource.org/licenses/BSD-3-Clause
 
-(ns inspector-jay.utils
+(ns inspector-jay.gui.utils
   "Some utility functions"
   {:author "Tim Molderez"}
   (:use 

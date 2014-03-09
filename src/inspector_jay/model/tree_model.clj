@@ -5,11 +5,11 @@
 ; which accompanies this distribution, and is available at
 ; http://www.opensource.org/licenses/BSD-3-Clause
 
-(ns inspector-jay.tree-model
+(ns inspector-jay.model.tree-model
   "Defines the tree model of the object inspector"
   {:author "Tim Molderez"}
   (:use 
-    [inspector-jay.tree-node])
+    [inspector-jay.model.tree-node])
   (:import
      [java.util Collection Map RandomAccess]
      [javax.swing.tree TreeModel]
