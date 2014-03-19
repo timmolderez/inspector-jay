@@ -20,9 +20,10 @@
 (defn to-string-sequence ^String [sequence]
   "Create a string listing the elements of a sequence"
   (let [n (count sequence)
-        indexWidth (if (not= n 0)
+        indexWidth (if (> n 1)
                      (int (java.lang.Math/ceil (java.lang.Math/log10 n)))
-                     0)]
+                     1)]
+    (println indexWidth)
     (join
       (for [x (range 0 n)]
         (format (str "[%0" indexWidth "d] %s\n") x (nth sequence x))))))

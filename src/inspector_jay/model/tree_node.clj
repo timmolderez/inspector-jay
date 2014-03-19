@@ -9,8 +9,8 @@
   "Defines the data structure of a tree node"
   {:author "Tim Molderez"}
   (:import
-     [java.lang.reflect Modifier Method Field InvocationTargetException]
-     [clojure.lang Delay])
+    [java.lang.reflect Modifier Method Field InvocationTargetException]
+    [clojure.lang Delay])
   (:use 
     [clojure.string :only [join]]))
 
@@ -50,9 +50,9 @@
                                     ancestorFields)]
                (concat
                  (if (opts :sorted)
-        (sort-by (memfn getName) declFields)
-        declFields)
-      filteredAncestors)))))
+                   (sort-by (memfn getName) declFields)
+                   declFields)
+                 filteredAncestors)))))
 
 (def get-visible-methods 
   (memoize (fn [cls opts]
@@ -124,58 +124,60 @@
 
 (deftype TreeNode [data]
   ITreeNode
- (getValue [this] 
-   (force (data :value)))
- (hasValue [this]
-   (if (instance? Delay (data :value))
-     (and 
-       (realized? (data :value)) 
-       (not= (deref (data :value)) nil))
-     (not= (data :value) nil)))
- (mightHaveValue [this]
+  (getValue [this] 
+    (force (data :value)))
+  (hasValue [this]
+    (if (instance? Delay (data :value))
+      (and 
+        (realized? (data :value)) 
+        (not= (deref (data :value)) nil))
+      (not= (data :value) nil)))
+  (mightHaveValue [this]
     (and
       (contains? data :value))
-      (not= (data :value) nil))
- (isValueAvailable [this]
-   (if (instance? Delay (data :value))
-     (realized? (data :value))
-     true))
- (getValueClass [this]
-   (case (-> this .getKind)
-     :object (-> (data :value) .getClass)
-     :method (-> (data :method) .getReturnType)
-     :field (-> (data :field) .getType)))
- (getMethod [this]
-   (data :method))
- (invokeMethod [this args]
-   (binding [meth-args args] ; Makes the method arguments available to the value's delay-function
-  (-> this .getValue)))
- (getField [this]
-   (data :field))
- (getMethods [this opts]
-   (if (not= (-> this .getValue) nil)
-     (get-visible-methods (-> this .getValue .getClass) (dissoc opts :methods :fields))
-     nil))
- (getFields [this opts]
-   (if (not= (-> this .getValue) nil)
-     (get-visible-fields (-> this .getValue .getClass) (dissoc opts :methods :fields))
-     nil))
- (getKind [this] 
-   (cond
-     (contains? data :method) :method
-      (contains? data :field) :field
-     :else :object))
- (getCollectionKind [this]
-   (let [cls (-> this .getValueClass)]
+    (not= (data :value) nil))
+  (isValueAvailable [this]
+    (if (instance? Delay (data :value))
+      (realized? (data :value))
+      true))
+  (getValueClass [this]
+    (case (-> this .getKind)
+      :object (-> (data :value) .getClass)
+      :method (-> (data :method) .getReturnType)
+      :field (-> (data :field) .getType)
+      :nil Object))
+  (getMethod [this]
+    (data :method))
+  (invokeMethod [this args]
+    (binding [meth-args args] ; Makes the method arguments available to the value's delay-function
+      (-> this .getValue)))
+  (getField [this]
+    (data :field))
+  (getMethods [this opts]
+    (if (not= (-> this .getValue) nil)
+      (get-visible-methods (-> this .getValue .getClass) (dissoc opts :methods :fields))
+      nil))
+  (getFields [this opts]
+    (if (not= (-> this .getValue) nil)
+      (get-visible-fields (-> this .getValue .getClass) (dissoc opts :methods :fields))
+      nil))
+  (getKind [this]
     (cond
-      ; A :sequence is anything that supports the nth function..
-    (-> clojure.lang.Sequential (.isAssignableFrom cls)) :sequence
-      (-> java.util.RandomAccess (.isAssignableFrom cls)) :sequence
-      (-> cls .isArray) :sequence
-      ; All collections support the count and seq functions.. 
-    (-> java.util.Collection (.isAssignableFrom cls)) :collection
-      (-> java.util.Map (.isAssignableFrom cls)) :collection
-      :else :atom))))
+      (contains? data :method) :method
+      (contains? data :field) :field
+      (not= (data :value) nil) :object
+      :else :nil))
+  (getCollectionKind [this]
+    (let [cls (-> this .getValueClass)]
+      (cond
+        ; A :sequence is anything that supports the nth function..
+        (-> clojure.lang.Sequential (.isAssignableFrom cls)) :sequence
+        (-> java.util.RandomAccess (.isAssignableFrom cls)) :sequence
+        (-> cls .isArray) :sequence
+        ; All collections support the count and seq functions.. 
+        (-> java.util.Collection (.isAssignableFrom cls)) :collection
+        (-> java.util.Map (.isAssignableFrom cls)) :collection
+        :else :atom))))
 
 (defn object-node ^TreeNode [^Object object]
   "Create a new generic object node."
@@ -191,13 +193,8 @@
                                              (apply invoke-method method receiver meth-args)
                                              (invoke-method method receiver)))})))
 
-(defn reset-method-node [^TreeNode node ^Object receiver]
-  "Clear the return value of a method node, and set a new receiver object."
-  (let []
-    )) 
-
 (defn field-node ^TreeNode [^Field field ^Object receiver]
   "Create a field node, given a field and a receiver object.
    The object contained by this node is the field's value."
   (-> field (.setAccessible true)) ; Enable access to private fields
- (new TreeNode {:field field :value (-> field (.get receiver))}))
+  (new TreeNode {:field field :value (-> field (.get receiver))}))

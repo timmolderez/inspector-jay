@@ -50,6 +50,8 @@
 
 (defmethod to-string :default [node]
   (-> node .getValue .toString))
+(defmethod to-string :nil [node]
+  "nil")
 (defmethod to-string :method [node]
   (str
     (-> node .getMethod .getName)
@@ -65,6 +67,8 @@
 
 (defmethod to-string-breadcrumb :default [node]
   (truncate (-> node .getValue .toString) crumb-length))
+(defmethod to-string-breadcrumb :nil [node]
+  "nil")
 (defmethod to-string-breadcrumb :method [node]
   (truncate (str
     (-> node .getMethod .getName)
@@ -81,6 +85,8 @@
     (-> node .getValue .getClass)
     "\n\n"
     (to-string-value node)))
+(defmethod to-string-verbose :nil [node]
+  "nil")
 (defmethod to-string-verbose :method [node]
   (str
     (-> node .getMethod .toString)      
