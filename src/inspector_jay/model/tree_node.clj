@@ -14,7 +14,9 @@
   (:use 
     [clojure.string :only [join]]))
 
-(declare ^:dynamic meth-args) ; This declaration is needed so we can make method arguments available inside the delay-function that invokes a method (see method-node)
+(def ^:dynamic meth-args) ; This declaration is needed so we can make method arguments available inside the delay-function that invokes a method (see method-node)
+(def ^:dynamic vars)      ; This declaration is needed to make shared variables available when evaluating a method argument (see eval-arg)
+
 
 (defn invoke-method [method object & args]
   "Call a method on an object via reflection, and return its return value.
@@ -198,3 +200,10 @@
    The object contained by this node is the field's value."
   (-> field (.setAccessible true)) ; Enable access to private fields
   (new TreeNode {:field field :value (-> field (.get receiver))}))
+
+(defn eval-arg [arg shared-vars]
+  "Evaluate an expression to obtain the value of a method argument. 
+   The value of shared-vars is made available in the expression as the vars variable."
+  (binding [*ns* (the-ns 'inspector-jay.model.tree-node) ; Make sure the namespace corresponds to this file; otherwise the declaration of vars won't be found!
+            vars shared-vars]
+    (eval (read-string arg))))

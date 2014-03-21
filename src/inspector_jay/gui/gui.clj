@@ -87,7 +87,7 @@
       (config! info-panel :text (to-string-verbose (-> event .getPath .getLastPathComponent))))
     (treeCollapsed [event])))
 
-(defn- tree-will-expand-listener ^TreeWillExpandListener []
+(defn- tree-will-expand-listener ^TreeWillExpandListener [shared-vars]
   "Displays a dialog if the user needs to enter some actual parameters to invoke a method."
   (proxy [TreeWillExpandListener] []
     (treeWillExpand [event]
@@ -136,8 +136,8 @@
                     ok-handler (fn [e]
                                  (try (let [args (for [i (range 0 (count param-boxes))]
                                                    ; Try to evaluate the expression to obtain the current parameter's value
-                                                   (try 
-                                                     (let [value (eval (read-string (-> (nth param-boxes i) .getText)))
+                                                   (try
+                                                     (let [value (eval-arg (-> (nth param-boxes i) .getText) shared-vars)
                                                            type (nth param-types i)]
                                                        (cond
                                                          (= type java.lang.Short) (short value) ; Convert long to short
@@ -390,9 +390,15 @@
                                      (-> search-field .requestFocus)))))
                              ctrl-f-key JComponent/WHEN_IN_FOCUSED_WINDOW))))
 
-(defn inspector-panel ^JPanel [^Object object]
+(defn inspector-panel ^JPanel [^Object object & args]
   "Create and show an Inspector Jay window to inspect a given object"
-  (let [obj-info (text :multi-line? true :editable? false :font (gui-options :font))
+  (let [vars-index (if (not= args nil) 
+                     (+ 1 (-> args (.indexOf :vars)))
+                     0)
+        shared-vars (if (and (not= vars-index 0) (< vars-index (count args)))
+                      (nth args vars-index)
+                      {})
+        obj-info (text :multi-line? true :editable? false :font (gui-options :font))
         obj-tree (tree :model (tree-model object tree-options))
         crumbs (label :icon (icon (resource "icons/toggle_breadcrumb.gif")))
         obj-info-scroll (scrollable obj-info)
@@ -407,7 +413,7 @@
       (.setCellRenderer (tree-renderer))
       (.addTreeSelectionListener (tree-selection-listener obj-info crumbs))
       (.addTreeExpansionListener (tree-expansion-listener obj-info))
-      (.addTreeWillExpandListener (tree-will-expand-listener))
+      (.addTreeWillExpandListener (tree-will-expand-listener shared-vars))
       (.setSelectionPath (-> obj-tree (.getPathForRow 0))))
     main-panel))
 
@@ -423,7 +429,7 @@
       (let [window (frame :title (str "Object inspector : " (.toString object)) 
                           :size [(gui-options :width) :by (gui-options :height)]
                           :on-close :dispose)
-            panel (inspector-panel object)]
+            panel (apply inspector-panel object args)]
         (-> jay-windows (.add window))
         (config! window :content panel)
         (bind-keys window)
@@ -435,7 +441,7 @@
       (let [window (last jay-windows)
             content (-> window .getContentPane)
             isTabbed (instance? JTabbedPane content)
-            panel (inspector-panel object)]
+            panel (apply inspector-panel object args)]
         (if (not isTabbed)
           (let [tabs (tabbed-panel)
                 title (truncate (-> (get-jtree content) .getModel .getRoot .getValue .toString) 20)]
