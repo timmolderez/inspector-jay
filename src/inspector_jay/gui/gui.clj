@@ -268,7 +268,9 @@
         search-txt (text :columns 20 :text "Search...")
         toolbar (toolbar :items [sort-button filter-button pane-button doc-button invoke-button refresh-button
                                  (Box/createHorizontalGlue) search-txt (Box/createHorizontalStrut 2)])]
-    (-> toolbar (.setBorder (empty-border :thickness 1)))
+    (doto toolbar
+      (.setBorder (empty-border :thickness 1))
+      (.setFloatable false))
     (-> search-txt (.setMaximumSize (-> search-txt .getPreferredSize)))
     ; Ditch the redundant dotted rectangle when a button is focused 
     (-> sort-button (.setFocusPainted false))
