@@ -87,4 +87,5 @@
           (doseq [listener listeners]
             (-> listener (.treeStructureChanged e)))))
       (getIndexOfChild [parent child] -1)
-      (removeTreeModelListener [treeModelListener]))))
+      (removeTreeModelListener [treeModelListener]
+        (-> listeners (.remove treeModelListener))))))

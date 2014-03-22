@@ -4,6 +4,7 @@
   :license {:name "BSD 3-Clause License"
             :url "http://opensource.org/licenses/BSD-3-Clause"}
   :dependencies [[org.clojure/clojure "1.5.1"]
+                 [org.clojure/core.memoize "0.5.6"]
                  [seesaw "1.4.3"
                   :exclusions [com.miglayout/miglayout
                                com.jgoodies/forms

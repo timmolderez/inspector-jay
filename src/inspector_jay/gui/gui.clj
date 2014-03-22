@@ -29,7 +29,7 @@
     [javax.swing.event TreeSelectionListener TreeExpansionListener TreeWillExpandListener]
     [javax.swing.tree ExpandVetoException]
     [java.awt Rectangle Toolkit]
-    [java.awt.event KeyEvent ActionListener ActionEvent InputEvent]
+    [java.awt.event KeyEvent ActionListener ActionEvent InputEvent WindowEvent]
     [net.java.balloontip BalloonTip CustomBalloonTip]
     [net.java.balloontip.positioners LeftAbovePositioner LeftBelowPositioner]
     [net.java.balloontip.styles IsometricBalloonStyle]
@@ -42,6 +42,7 @@
    :height 768
    :font (font :name :sans-serif :style #{:plain})
    :crumb-length 32
+   :max-tabs 20
    :btip-style `(new IsometricBalloonStyle (UIManager/getColor "Panel.background") (color "#268bd2") 5)
    :btip-error-style `(new IsometricBalloonStyle (UIManager/getColor "Panel.background") (color "#d32e27") 3)
    :btip-positioner `(new LeftAbovePositioner 8 5)})
@@ -54,7 +55,7 @@
    :protected false
    :private false
    :static true
-   :inherited false})
+   :inherited true})
 
 (defn- tree-renderer ^DefaultTreeCellRenderer []
   "Returns a cell renderer which defines what each tree node should look like"
@@ -140,20 +141,22 @@
                                                      (let [value (eval-arg (-> (nth param-boxes i) .getText) shared-vars)
                                                            type (nth param-types i)]
                                                        (cond
+                                                         ; Do primitive type conversion when necessary
                                                          (= type java.lang.Short) (short value) ; Convert long to short
                                                          (= type java.lang.Float) (float value) ; Convert double to float
                                                          (= type java.lang.Integer) (int value) ; Convert long to int
                                                          :else value))
-                                                     (catch Exception e (do
-                                                                          (TimingUtils/showTimedBalloon (new BalloonTip 
-                                                                                                          (nth param-boxes i)
-                                                                                                          (label (-> e .getMessage))
-                                                                                                          (eval (gui-options :btip-error-style))
-                                                                                                          (eval (gui-options :btip-positioner))
-                                                                                                          nil)
-                                                                            3000)
-                                                                          (-> (Toolkit/getDefaultToolkit) .beep)
-                                                                          (throw (Exception.))))))]
+                                                     (catch Exception e 
+                                                       (do
+                                                         (TimingUtils/showTimedBalloon (new BalloonTip 
+                                                                                         (nth param-boxes i)
+                                                                                         (label (-> e .getMessage))
+                                                                                         (eval (gui-options :btip-error-style))
+                                                                                         (eval (gui-options :btip-positioner))
+                                                                                         nil)
+                                                           3000)
+                                                         (-> (Toolkit/getDefaultToolkit) .beep)
+                                                         (throw (Exception.))))))]
                                         (doseq [x args] x) ; If something went wrong with the arguments, this should trigger the exception before attempting an invocation..
                                         (-> node (.invokeMethod args))
                                         (-> btip .closeBalloon)
@@ -344,15 +347,30 @@
       content
       (-> content .getSelectedComponent))))
 
+(defn- close-selected-tab [^JFrame window]
+  "Close the currently selected tab in an Inspector Jay window"
+  (let [content (-> window .getContentPane)
+        isTabbed (instance? JTabbedPane content)] 
+    (if (not isTabbed)
+      ; Close the window if there only is one object opened
+      (-> window (.dispatchEvent (new WindowEvent window WindowEvent/WINDOW_CLOSING)))
+      ; Close the tab
+      (do
+        (-> content (.removeTabAt (-> content .getSelectedIndex)))
+        ; Go back to an untabbed interface if there's only one tab left
+        (if (= 1 (-> content .getTabCount))
+          (-> window (.setContentPane (-> content (.getSelectedComponent)))))))))
+
 (defn- bind-keys
   [^JFrame frame]
-  "Attach various key bindings to the Inspector Jay window"
+  "Attach various key bindings to an Inspector Jay window"
   (let
     [f1-key (KeyStroke/getKeyStroke KeyEvent/VK_F1 0)
      f3-key (KeyStroke/getKeyStroke KeyEvent/VK_F3 0)
      f4-key (KeyStroke/getKeyStroke KeyEvent/VK_F4 0)
      shift-f3-key (KeyStroke/getKeyStroke KeyEvent/VK_F3 InputEvent/SHIFT_DOWN_MASK)
-     ctrl-f-key (KeyStroke/getKeyStroke KeyEvent/VK_F (-> (Toolkit/getDefaultToolkit) .getMenuShortcutKeyMask))] ; Cmd on a Mac; Ctrl elsewhere
+     ctrl-f-key (KeyStroke/getKeyStroke KeyEvent/VK_F (-> (Toolkit/getDefaultToolkit) .getMenuShortcutKeyMask)) ; Cmd on a Mac, Ctrl elsewhere
+     ctrl-w-key (KeyStroke/getKeyStroke KeyEvent/VK_W (-> (Toolkit/getDefaultToolkit) .getMenuShortcutKeyMask))] 
     ; Search javadoc for the currently selected node and open it in a browser window
     (-> frame .getRootPane (.registerKeyboardAction
                              (proxy [ActionListener] []
@@ -388,7 +406,13 @@
                                    (if (-> search-field .hasFocus)
                                      (-> (get-jtree tab) .requestFocus)
                                      (-> search-field .requestFocus)))))
-                             ctrl-f-key JComponent/WHEN_IN_FOCUSED_WINDOW))))
+                             ctrl-f-key JComponent/WHEN_IN_FOCUSED_WINDOW))
+    ; Close the current tab
+    (-> frame .getRootPane (.registerKeyboardAction
+                             (proxy [ActionListener] []
+                               (actionPerformed [e]
+                                 (close-selected-tab frame)))
+                             ctrl-w-key JComponent/WHEN_IN_FOCUSED_WINDOW))))
 
 (defn inspector-panel ^JPanel [^Object object & args]
   "Create and show an Inspector Jay window to inspect a given object"
@@ -433,8 +457,10 @@
         (-> jay-windows (.add window))
         (config! window :content panel)
         (bind-keys window)
-        ; Remove the window from the list when it's closed
-        (listen window :window-closed (fn [e] (-> jay-windows (.remove window))))
+        ; When the window is closed, remove the window from the list and clear caches
+        (listen window :window-closed (fn [e] 
+                                        (-> jay-windows (.remove window))
+                                        (clear-memoization-caches)))
         (-> window show!)
         (-> (get-jtree panel) .requestFocus))
       ; Otherwise, add a new tab
@@ -442,6 +468,7 @@
             content (-> window .getContentPane)
             isTabbed (instance? JTabbedPane content)
             panel (apply inspector-panel object args)]
+        ; If the tabbed pane has not been created yet
         (if (not isTabbed)
           (let [tabs (tabbed-panel)
                 title (truncate (-> (get-jtree content) .getModel .getRoot .getValue .toString) 20)]
@@ -454,7 +481,12 @@
                                          title (-> tree .getModel .getRoot .getValue .toString)]
                                      (-> window (.setTitle title))
                                      (-> tree .requestFocus))))))
-        (doto (-> window .getContentPane)
-          (.add (truncate (.toString object) 20) panel)
-          (.setSelectedIndex (-> window .getContentPane (.indexOfComponent panel))))
-        (-> (get-jtree panel) .requestFocus))))
+        (let [tabs (-> window .getContentPane)]
+          ; Add the new tab
+          (doto tabs
+            (.add (truncate (.toString object) 20) panel)
+            (.setSelectedIndex (-> window .getContentPane (.indexOfComponent panel))))
+          ; Close the first tab, if going beyond the maximum number of tabs
+          (if (> (-> tabs .getTabCount) (gui-options :max-tabs))
+            (-> tabs (.removeTabAt 0)))
+          (-> (get-jtree panel) .requestFocus)))))

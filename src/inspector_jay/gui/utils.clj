@@ -23,7 +23,6 @@
         indexWidth (if (> n 1)
                      (int (java.lang.Math/ceil (java.lang.Math/log10 n)))
                      1)]
-    (println indexWidth)
     (join
       (for [x (range 0 n)]
         (format (str "[%0" indexWidth "d] %s\n") x (nth sequence x))))))
