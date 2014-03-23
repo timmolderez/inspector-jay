@@ -12,7 +12,7 @@ Inspector Jay is an inspection utility that can help you to debug and/or underst
 
 ### Installation
 
-If you're using [**Leiningen**](https://github.com/technomancy/leiningen), add `[inspector-jay "0.2"]` to the dependencies in your `project.clj` file.
+If you're using [**Leiningen**](https://github.com/technomancy/leiningen), add `[inspector-jay "0.2.5"]` to the dependencies in your `project.clj` file.
 
 If you're using [**Maven**](http://maven.apache.org/), add the following dependency to your `pom.xml` file:
 
@@ -20,7 +20,7 @@ If you're using [**Maven**](http://maven.apache.org/), add the following depende
 <dependency>
   <groupId>inspector-jay</groupId>
   <artifactId>inspector-jay</artifactId>
-  <version>0.2</version>
+  <version>0.2.5</version>
 </dependency>
 ```
 
@@ -43,13 +43,6 @@ If you're using **Java**, you can call Inspector Jay as follows:
 ```java
 inspectorjay.InspectoryJay.inspect(new java.io.File("."));
 ```
-
-Note that Inspector Jay windows are also quite keyboard-friendly:
-- Use the arrow keys to navigate the tree. 
-- Press Ctrl+F to toggle focus between the search field and the tree.  
-  F3 / Shift-F3 moves to the next/previous search result.
-- Press F4 to (re)invoke the currently selected method.
-- Press F1 to look for Javadoc documentation of the currently selected node.
 
 ### License
 
