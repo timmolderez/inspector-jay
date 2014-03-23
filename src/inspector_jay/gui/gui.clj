@@ -57,6 +57,19 @@
    :static true
    :inherited true})
 
+(declare inspector-window) ; Forward declaration
+
+(defn- error [^String message ^JComponent component]
+  "Show an error message near a given component"
+  (TimingUtils/showTimedBalloon (new BalloonTip 
+                                  component
+                                  (label message)
+                                  (eval (gui-options :btip-error-style))
+                                  (eval (gui-options :btip-positioner))
+                                  nil)
+    3000)
+  (-> (Toolkit/getDefaultToolkit) .beep))
+
 (defn- tree-renderer ^DefaultTreeCellRenderer []
   "Returns a cell renderer which defines what each tree node should look like"
   (proxy [DefaultTreeCellRenderer] []
@@ -148,14 +161,7 @@
                                                          :else value))
                                                      (catch Exception e 
                                                        (do
-                                                         (TimingUtils/showTimedBalloon (new BalloonTip 
-                                                                                         (nth param-boxes i)
-                                                                                         (label (-> e .getMessage))
-                                                                                         (eval (gui-options :btip-error-style))
-                                                                                         (eval (gui-options :btip-positioner))
-                                                                                         nil)
-                                                           3000)
-                                                         (-> (Toolkit/getDefaultToolkit) .beep)
+                                                         (error (-> e .getMessage) (nth param-boxes i))
                                                          (throw (Exception.))))))]
                                         (doseq [x args] x) ; If something went wrong with the arguments, this should trigger the exception before attempting an invocation..
                                         (-> node (.invokeMethod args))
@@ -256,6 +262,7 @@
                                              (separator) filter-public filter-protected filter-private
                                              (separator) filter-static filter-inherited])
         pane-button (toggle :icon (icon (resource "icons/details_view.gif")) :size iconSize :selected? true)
+        inspect-button (button :icon (icon (resource "icons/insp_sbook.gif")) :size iconSize)
         doc-button (button :icon (icon (resource "icons/javadoc.gif")) :size iconSize)
         invoke-button (button :icon (icon (resource "icons/runlast_co.gif")) :size iconSize)
         refresh-button (button :icon (icon (resource "icons/nav_refresh.gif")) :size iconSize)
@@ -266,7 +273,7 @@
                             (eval (gui-options :btip-positioner))
                             nil))
         search-txt (text :columns 20 :text "Search...")
-        toolbar (toolbar :items [sort-button filter-button pane-button doc-button invoke-button refresh-button
+        toolbar (toolbar :items [sort-button filter-button pane-button inspect-button doc-button invoke-button refresh-button
                                  (Box/createHorizontalGlue) search-txt (Box/createHorizontalStrut 2)])]
     (doto toolbar
       (.setBorder (empty-border :thickness 1))
@@ -276,6 +283,7 @@
     (-> sort-button (.setFocusPainted false))
     (-> filter-button (.setFocusPainted false))
     (-> pane-button (.setFocusPainted false))
+    (-> inspect-button (.setFocusPainted false))
     (-> doc-button (.setFocusPainted false))
     (-> invoke-button (.setFocusPainted false))
     (-> refresh-button (.setFocusPainted false))
@@ -283,6 +291,7 @@
     (-> sort-button (.setToolTipText "Sort alphabetically"))
     (-> filter-button (.setToolTipText "Filtering options..."))
     (-> pane-button (.setToolTipText "Toggle horizontal/vertical layout"))
+    (-> inspect-button (.setToolTipText "Open selected node in new inspector (if it has a value)"))
     (-> doc-button (.setToolTipText "Search Javadoc (F1)"))
     (-> invoke-button (.setToolTipText "(Re)invoke selected method (F4)"))
     (-> refresh-button (.setToolTipText "Refresh tree"))
@@ -312,6 +321,14 @@
                                   (if (-> pane-button .isSelected)
                                     (-> split-pane (.setOrientation 0))
                                     (-> split-pane (.setOrientation 1)))))
+    ; Open selected node in new inspector
+    (listen inspect-button :action (fn [e] 
+                                     (let [selection (-> jtree .getLastSelectedPathComponent)]
+                                       (if (-> selection .hasValue)
+                                         (inspector-window (-> selection .getValue))
+                                         (if (= (-> selection .getKind) :method)
+                                           (error "Can't inspect the return value of this method. (Have you already called it?)" inspect-button)
+                                           (error "Can't inspect this node; it doesn't have a value." inspect-button))))))
     ; Open javadoc of selected tree node
     (listen doc-button :action (fn [e] (open-javadoc jtree)))
     ; (Re)invoke the selected method
