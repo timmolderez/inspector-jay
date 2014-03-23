@@ -193,6 +193,16 @@
     (if (not= selection nil)
       (javadoc (get-javadoc-class selection)))))
 
+(defn- inspect-node [jtree inspect-button]
+  "Open the currently selected node in a new inspector"
+  (let [selection (-> jtree .getLastSelectedPathComponent)]
+    (if (-> selection .hasValue)
+      (inspector-window (-> selection .getValue))
+      (if (= (-> selection .getKind) :method)
+        (error "Can't inspect the return value of this method. (Have you already called it?)" inspect-button)
+        (error "Can't inspect this node; it doesn't have a value." inspect-button))))
+  )
+
 (defn- reinvoke [jtree]
   "(Re)invoke the selected method node"
   (let [selection (-> jtree .getLastSelectedPathComponent)
@@ -291,7 +301,7 @@
     (-> sort-button (.setToolTipText "Sort alphabetically"))
     (-> filter-button (.setToolTipText "Filtering options..."))
     (-> pane-button (.setToolTipText "Toggle horizontal/vertical layout"))
-    (-> inspect-button (.setToolTipText "Open selected node in new inspector (if it has a value)"))
+    (-> inspect-button (.setToolTipText "Open selected node in new inspector"))
     (-> doc-button (.setToolTipText "Search Javadoc (F1)"))
     (-> invoke-button (.setToolTipText "(Re)invoke selected method (F4)"))
     (-> refresh-button (.setToolTipText "Refresh tree"))
@@ -322,13 +332,7 @@
                                     (-> split-pane (.setOrientation 0))
                                     (-> split-pane (.setOrientation 1)))))
     ; Open selected node in new inspector
-    (listen inspect-button :action (fn [e] 
-                                     (let [selection (-> jtree .getLastSelectedPathComponent)]
-                                       (if (-> selection .hasValue)
-                                         (inspector-window (-> selection .getValue))
-                                         (if (= (-> selection .getKind) :method)
-                                           (error "Can't inspect the return value of this method. (Have you already called it?)" inspect-button)
-                                           (error "Can't inspect this node; it doesn't have a value." inspect-button))))))
+    (listen inspect-button :action (fn [e] (inspect-node jtree inspect-button)))
     ; Open javadoc of selected tree node
     (listen doc-button :action (fn [e] (open-javadoc jtree)))
     ; (Re)invoke the selected method

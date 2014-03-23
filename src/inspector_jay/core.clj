@@ -17,7 +17,7 @@
 (defn inspect ^Object	[^Object object & args]
   "Displays an object inspector window for a given object.
   The return value of inspect is the object itself, so you can plug in this function anywhere you like."
-  (if (not= object nil) 
+  (if (not= object nil)
     (apply inspector-window object args))
   object)
 
