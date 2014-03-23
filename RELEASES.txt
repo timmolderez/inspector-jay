@@ -1,6 +1,16 @@
 Release notes
 -------------
 
+v0.2.5
+------
+
+* New feature - Open the selected node in a new inspector
+* New feature - Use the :vars option to pass variables into an inspector. When invoking methods, you can then use these variables as parameters.
+* New feature - Tabs can be closed with Ctrl+w
+* Change - A maximum number of tabs is enforced. Whenever you open a tab too many, the first one is closed.
+* Change - Now using the core.memoize library, so our memoization cache is cleared when closing an inspector
+* Bug fixed - Exception when inspecting a collection with 1 item, or items with a nil value
+
 v0.2
 ----
 
