@@ -20,7 +20,7 @@ If you're using [**Maven**](http://maven.apache.org/), add the following depende
 <dependency>
   <groupId>inspector-jay</groupId>
   <artifactId>inspector-jay</artifactId>
-  <version>0.2.5</version>
+  <version>0.3</version>
 </dependency>
 ```
 
