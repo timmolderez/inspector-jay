@@ -3,9 +3,9 @@ Inspector Jay
 
 Inspector Jay is an inspection utility that can help you to debug and/or understand Clojure/Java code. Just pass an object or data structure to the `inspect` function and you can quickly examine its contents in a simple graphical user interface.
 
-- Inspect just about anything that is reachable from an object by navigating Inspector Jay's tree structure.
-- Examine the field values of objects, as well as the return values (or even exceptions) of invoked methods.
-- Similar to `clojure.inspector`, Inspector Jay can examine Clojure data structures and Java collections.
+- Inspect just about anything reachable from an object by navigating Inspector Jay's tree structure.
+- Examine the field values of objects and the return values of invoked methods.
+- Similar to `clojure.inspector`, Clojure data structures and Java collections can also be examined.
 - Inspector Jay can be used in both Clojure and Java applications.
 
 ![Inspector Jay logo](https://raw.github.com/timmolderez/inspector-jay/master/resources/images/screenshot-edit.png)
