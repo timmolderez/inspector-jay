@@ -19,7 +19,7 @@
     string))
 
 (defn to-string-sequence
-  "Create a string listing the elements of a sequence"
+  "Create a string, listing the elements of a sequence"
   ^String [sequence]
   (let [n (count sequence)
         indexWidth (if (> n 1)

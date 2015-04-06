@@ -6,7 +6,7 @@
 ; http://www.opensource.org/licenses/BSD-3-Clause
 
 (ns inspector-jay.core
-  "Inspector Jay is a simple GUI application that lets you inspect Java/Clojure objects and data structures."
+  "Inspector Jay is a graphical inspector that lets you examine Java/Clojure objects and data structures."
   {:author "Tim Molderez"}
   (:gen-class
     :name inspectorjay.InspectorJay
@@ -17,7 +17,7 @@
              [utils :as utils]]))
 
 (defn inspect
-  "Displays an object inspector window for a given object.
+  "Displays an inspector window for a given object.
   The return value of inspect is the object itself, so you can plug in this function anywhere you like.
   See gui/default-options for more information on all available keyword arguments."
   ^Object	[^Object object & {:as args}]

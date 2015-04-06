@@ -23,10 +23,9 @@
   "Retrieve a short description of a tree node"
   (fn [node] (-> node .getKind)))
 
-(def crumb-length 32) ; Max length of a single breadcrumb
 (defmulti to-string-breadcrumb
   "Retrieve a string to describe a tree node in a path of breadcrumbs"
-  (fn [node] (-> node .getKind)))
+  (fn [node crumb-length] (-> node .getKind)))
 
 (defmulti to-string-verbose
   "Retrieve a detailed description of a tree node"
@@ -61,18 +60,18 @@
     " : "
     (-> node .getValue)))
 
-(defmethod to-string-breadcrumb :default [node]
+(defmethod to-string-breadcrumb :default [node crumb-length]
   (utils/truncate (-> node .getValue .toString) crumb-length))
-(defmethod to-string-breadcrumb :nil [node]
+(defmethod to-string-breadcrumb :nil [node crumb-length]
   "nil")
-(defmethod to-string-breadcrumb :method [node]
+(defmethod to-string-breadcrumb :method [node crumb-length]
   (utils/truncate (str
     (-> node .getMethod .getName)
     "("
     (s/join (interpose ", " (map (memfn getSimpleName) (-> node .getMethod .getParameterTypes))))
     ")")
     crumb-length))
-(defmethod to-string-breadcrumb :field [node]
+(defmethod to-string-breadcrumb :field [node crumb-length]
   (utils/truncate (str (-> node .getField .getName)) 
     crumb-length))
 
