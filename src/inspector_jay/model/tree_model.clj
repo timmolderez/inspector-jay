@@ -1,4 +1,4 @@
-; Copyright (c) 2013-2014 Tim Molderez.
+; Copyright (c) 2013-2015 Tim Molderez.
 ;
 ; All rights reserved. This program and the accompanying materials
 ; are made available under the terms of the 3-Clause BSD License
@@ -8,8 +8,8 @@
 (ns inspector-jay.model.tree-model
   "Defines the tree model of the object inspector"
   {:author "Tim Molderez"}
-  (:use 
-    [inspector-jay.model.tree-node])
+  (:require
+    [inspector-jay.model.tree-node :as node])
   (:import
      [java.util Collection Map RandomAccess]
      [javax.swing.tree TreeModel]
@@ -41,17 +41,17 @@
   (if (opts :methods)
     (if (< index (count (-> node (.getMethods opts))))
       ; Methods always come first; if the index does not go beyond the number of methods, we're retrieving a method
-      (let [meth (nth (-> node (.getMethods opts)) index)] (method-node meth (-> node .getValue)))
+      (let [meth (nth (-> node (.getMethods opts)) index)] (node/method-node meth (-> node .getValue)))
       ; Otherwise, we must be retrieving a field
       (let [field-index (- index (count (-> node (.getMethods opts))))
             field (nth (-> node (.getFields opts)) field-index)] 
-        (field-node field (-> node .getValue))))
+        (node/field-node field (-> node .getValue))))
     ; If methods are hidden, we must be retrieving a field
-    (let [field (nth (-> node (.getFields opts)) index)] (field-node field (-> node .getValue)))))
+    (let [field (nth (-> node (.getFields opts)) index)] (node/field-node field (-> node .getValue)))))
 (defmethod get-child :sequence [node index opts]
-  (object-node (nth (-> node .getValue) index)))
+  (node/object-node (nth (-> node .getValue) index)))
 (defmethod get-child :collection [node index opts]
-  (object-node (nth (seq (-> node .getValue)) index)))
+  (node/object-node (nth (seq (-> node .getValue)) index)))
 
 (defmethod get-child-count :default [node opts]
   (if (-> node .hasValue)
@@ -67,13 +67,12 @@
     (count (-> node .getValue))
     0))
 
-(defn tree-model ^TreeModel
-  [^Object root filter-options]
-   
+(defn tree-model
   "Define a tree model around root, which is the object we want to inspect"
+  ^TreeModel [^Object root filter-options]
   (let [listeners (new java.util.Vector)] 
     (proxy [TreeModel] []
-      (getRoot [] (object-node root))
+      (getRoot [] (node/object-node root))
       (addTreeModelListener [treeModelListener]
         (-> listeners (.add treeModelListener)))
       (getChild [parent index]

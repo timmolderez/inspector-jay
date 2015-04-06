@@ -1,4 +1,4 @@
-; Copyright (c) 2013-2014 Tim Molderez.
+; Copyright (c) 2013-2015 Tim Molderez.
 ;
 ; All rights reserved. This program and the accompanying materials
 ; are made available under the terms of the 3-Clause BSD License
@@ -11,22 +11,22 @@
   (:import
     [java.lang.reflect Modifier Method Field InvocationTargetException]
     [clojure.lang Delay])
-  (:use 
-    [clojure.string :only [join]]
-    [clojure.core.memoize]))
+  (:require
+    [clojure.core.memoize :as memo]))
 
 (def ^:dynamic meth-args) ; This declaration is needed so we can make method arguments available inside the delay-function that invokes a method (see method-node)
 (def ^:dynamic vars)      ; This declaration is needed to make shared variables available when evaluating a method argument (see eval-arg)
 
-(defn invoke-method [method object & args]
+(defn invoke-method 
   "Call a method on an object via reflection, and return its return value.
    If the call produces an exception, it is caught and returned as the return value instead."
+  [method object & args]
   (try
     (-> method (.invoke object (to-array args)))
     (catch InvocationTargetException e (-> e .getCause))))
 
 (def get-visible-fields 
-  (memo (fn [cls opts]
+  (memo/memo (fn [cls opts]
           "Retrieve all fields that are visible to any instances of class cls.
               More specifically, all fields declared directly in cls, and all public/protected fields found in its ancestor classes.
               (This function is memoized, as it may trigger a lot of reflective calls.)"
@@ -57,7 +57,7 @@
               filteredAncestors)))))
 
 (def get-visible-methods 
-  (memo (fn [cls opts]
+  (memo/memo (fn [cls opts]
           "Retrieve all methods that are visible to any instances of class cls.
               More specifically, all methods declared directly in cls, and all public/protected methods found in its ancestor classes.
               (This function is memoized, as it may trigger a lot of reflective calls.)"
@@ -90,10 +90,11 @@
                 declMethods)
               filteredAncestors)))))
 
-(defn clear-memoization-caches []
+(defn clear-memoization-caches
   "Clear the caches that store the list of fields and methods per class"
-  (memo-clear! get-visible-methods)
-  (memo-clear! get-visible-fields)) 
+  []
+  (memo/memo-clear! get-visible-methods)
+  (memo/memo-clear! get-visible-fields)) 
 
 (defprotocol ITreeNode
   (getValue [this]
@@ -162,11 +163,11 @@
     (data :field))
   (getMethods [this opts]
     (if (not= (-> this .getValue) nil)
-      (get-visible-methods (-> this .getValue .getClass) (dissoc opts :methods :fields))
+      (get-visible-methods (-> this .getValue .getClass) opts)
       nil))
   (getFields [this opts]
     (if (not= (-> this .getValue) nil)
-      (get-visible-fields (-> this .getValue .getClass) (dissoc opts :methods :fields))
+      (get-visible-fields (-> this .getValue .getClass) opts)
       nil))
   (getKind [this]
     (cond
@@ -186,13 +187,15 @@
         (-> java.util.Map (.isAssignableFrom cls)) :collection
         :else :atom))))
 
-(defn object-node ^TreeNode [^Object object]
+(defn object-node 
   "Create a new generic object node."
+  ^TreeNode [^Object object]
   (new TreeNode {:value object}))
 
-(defn method-node ^TreeNode [^Method method ^Object receiver]
+(defn method-node
   "Create a method node, given a method and a receiver object.
    The object contained by this node is the return value of invoking the method."
+  ^TreeNode [^Method method ^Object receiver]
   (let []
     (-> method (.setAccessible true)) ; Enable access to private methods
     (new TreeNode {:method method :value (delay
@@ -200,15 +203,17 @@
                                              (apply invoke-method method receiver meth-args)
                                              (invoke-method method receiver)))})))
 
-(defn field-node ^TreeNode [^Field field ^Object receiver]
+(defn field-node 
   "Create a field node, given a field and a receiver object.
    The object contained by this node is the field's value."
+  ^TreeNode [^Field field ^Object receiver]  
   (-> field (.setAccessible true)) ; Enable access to private fields
   (new TreeNode {:field field :value (-> field (.get receiver))}))
 
-(defn eval-arg [arg shared-vars]
+(defn eval-arg
   "Evaluate an expression to obtain the value of a method argument. 
    The value of shared-vars is made available in the expression as the vars variable."
+  [arg shared-vars]
   (binding [*ns* (the-ns 'inspector-jay.model.tree-node) ; Make sure the namespace corresponds to this file; otherwise the declaration of vars won't be found!
             vars shared-vars]
     (eval (read-string arg))))

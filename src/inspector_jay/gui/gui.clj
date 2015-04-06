@@ -1,4 +1,4 @@
-; Copyright (c) 2013-2014 Tim Molderez.
+; Copyright (c) 2013-2015 Tim Molderez.
 ;
 ; All rights reserved. This program and the accompanying materials
 ; are made available under the terms of the 3-Clause BSD License
@@ -8,21 +8,22 @@
 (ns inspector-jay.gui.gui
   "Defines Inspector Jay's graphical user interface"
   {:author "Tim Molderez"}
-  (:use 
-    [clojure.string :only [join]]
-    [clojure.java.io :only [resource]]
-    [clojure.java.javadoc]
+  (:require
+    [clojure.string :as s]
+    [clojure.java
+     [io :as io]
+     [javadoc :as jdoc]]
     [seesaw
-     [core :exclude [tree-options]]
-     [color]
-     [border]
-     [font]]
+     [core :as seesaw]
+     [color :as color]
+     [border :as border]
+     [font :as font]]
     [inspector-jay.gui
-     [utils]
-     [node-properties]]
+     [utils :as utils]
+     [node-properties :as nprops]]
     [inspector-jay.model
-     [tree-node]
-     [tree-model]])
+     [tree-node :as node]
+     [tree-model :as model]])
   (:import
     [javax.swing Box JTextArea KeyStroke JFrame JPanel JTree JToolBar JComponent JToolBar$Separator UIManager JSplitPane JTabbedPane]
     [javax.swing.tree DefaultTreeCellRenderer]
@@ -35,27 +36,43 @@
     [net.java.balloontip.styles IsometricBalloonStyle]
     [net.java.balloontip.utils TimingUtils]))
 
-(native!) ; Use the OS's native look and feel
+(seesaw/native!) ; Use the OS's native look and feel
 
-(def gui-options ; Inspector Jay GUI options
-  {:width 1024
-   :height 768
-   :font (font :name :sans-serif :style #{:plain})
-   :crumb-length 32
-   :max-tabs 20
-   :btip-style `(new IsometricBalloonStyle (UIManager/getColor "Panel.background") (color "#268bd2") 5)
-   :btip-error-style `(new IsometricBalloonStyle (UIManager/getColor "Panel.background") (color "#d32e27") 3)
-   :btip-positioner `(new LeftAbovePositioner 8 5)})
-
-(def tree-options ; Tree filtering options
-  {:sorted true
+(def
+  ^{:doc "Defaults for keyword arguments when opening an inspector"}
+  default-options
+  {; Tree filtering options
+   :sorted true
    :methods true
    :fields true
    :public true
    :protected false
    :private false
    :static true
-   :inherited true})
+   :inherited true
+   
+   ; Miscellaneous options
+   :new-window false ; If true, an inspector is always opened in a new window.
+                     ; Otherwise, the inspector is opened as a new tab.
+   :pause false ; If true, the current thread will be paused when opening an inspector.
+                ; Execution will resume either when clicking the resume button, or closing the inspector.
+   :vars nil ; You can use this to pass in any extra information to an inspector window.
+             ; This is useful when invoking a method in the inspector, and you need to fill in some argument values.
+             ; In such a case, the value of :vars is available in the inspector under the variable named vars."
+   
+   })
+
+(def
+  ^{:doc "Inspectory Jay GUI options"}
+  gui-options
+  {:width 1024
+   :height 768
+   :font (font/font :name :sans-serif :style #{:plain})
+   :crumb-length 32
+   :max-tabs 16
+   :btip-style `(new IsometricBalloonStyle (UIManager/getColor "Panel.background") (color/color "#268bd2") 5)
+   :btip-error-style `(new IsometricBalloonStyle (UIManager/getColor "Panel.background") (color/color "#d32e27") 3)
+   :btip-positioner `(new LeftAbovePositioner 8 5)})
 
 (declare inspector-window) ; Forward declaration
 
@@ -63,7 +80,7 @@
   "Show an error message near a given component"
   (TimingUtils/showTimedBalloon (new BalloonTip 
                                   component
-                                  (label message)
+                                  (seesaw/label message)
                                   (eval (gui-options :btip-error-style))
                                   (eval (gui-options :btip-positioner))
                                   nil)
@@ -75,30 +92,42 @@
   (proxy [DefaultTreeCellRenderer] []
     (getTreeCellRendererComponent [tree value selected expanded leaf row hasFocus]
       (proxy-super getTreeCellRendererComponent tree value selected expanded leaf row hasFocus)
-      (-> this (.setText (to-string value)))
-      (-> this (.setIcon (get-icon value)))
+      (-> this (.setText (nprops/to-string value)))
+      (-> this (.setIcon (nprops/get-icon value)))
       this)))
 
+(def last-selected-node (atom nil))
+
+(defn last-selected-value 
+  "Retrieve the value of the tree node that was last selected.
+   (An exception is thrown if we can't automatically obtain this value .. e.g. in case the
+   value is not available yet and the last selected node is a method with parameters.)"
+  []
+  (.getValue @last-selected-node))
+
 (defn- tree-selection-listener ^TreeSelectionListener [info-panel crumbs-panel]  
-  "Update the detailed information panel, as well as the breadcrumbs, whenever a tree node is selected"
+  "Whenever a tree node is selected, update the detailed information panel, the breadcrumbs, 
+   and the last-selected-value variable."
   (proxy [TreeSelectionListener] []
     (valueChanged [event]
-      (let [newPath (-> event .getNewLeadSelectionPath)]
-        (if (not= newPath nil)
-          (do 
-            (config! info-panel :text (to-string-verbose (-> newPath .getLastPathComponent)))
-            (config! crumbs-panel :text 
+      (let [new-path (-> event .getNewLeadSelectionPath)
+            new-node (-> new-path .getLastPathComponent)]
+        (if (not= new-path nil)
+          (do
+            (swap! last-selected-node (fn [x] new-node))
+            (seesaw/config! info-panel :text (nprops/to-string-verbose new-node))
+            (seesaw/config! crumbs-panel :text 
               (str
                 "<html>"
-                (join (interpose "<font color=\"#268bd2\"><b> &gt; </b></font>" 
-                        (map to-string-breadcrumb (-> newPath .getPath))))
+                (s/join (interpose "<font color=\"#268bd2\"><b> &gt; </b></font>" 
+                        (map nprops/to-string-breadcrumb (-> new-path .getPath))))
                 "</html>"))))))))
 
 (defn- tree-expansion-listener ^TreeExpansionListener [info-panel]
   "Updates the detailed information panel whenever a node is expanded."
   (proxy [TreeExpansionListener] []
     (treeExpanded [event]
-      (config! info-panel :text (to-string-verbose (-> event .getPath .getLastPathComponent))))
+      (seesaw/config! info-panel :text (nprops/to-string-verbose (-> event .getPath .getLastPathComponent))))
     (treeCollapsed [event])))
 
 (defn- tree-will-expand-listener ^TreeWillExpandListener [shared-vars]
@@ -127,15 +156,15 @@
                                     (= type "char") java.lang.Character
                                     :else x)))
                   param-boxes (for [x param-types]
-                                (text :tip (-> x .getSimpleName) :columns 32 ))
-                  params (grid-panel :rows (inc (count param-types)) :columns 1)
-                  ok-button (button :text "Call")
-                  cancel-button (button :text "Cancel")
-                  buttons (flow-panel)
-                  border-panel (border-panel :center params :south buttons)]
+                                (seesaw/text :tip (-> x .getSimpleName) :columns 32 ))
+                  params (seesaw/grid-panel :rows (inc (count param-types)) :columns 1)
+                  ok-button (seesaw/button :text "Call")
+                  cancel-button (seesaw/button :text "Cancel")
+                  buttons (seesaw/flow-panel)
+                  border-panel (seesaw/border-panel :center params :south buttons)]
               (-> buttons (.add ok-button))
               (-> buttons (.add cancel-button))
-              (-> params (.add (label "Enter parameter values to call this method:")))
+              (-> params (.add (seesaw/label "Enter parameter values to call this method:")))
               (doseq [x param-boxes]
                 (-> params (.add x)))
               (let [; Form to enter paramter values
@@ -151,7 +180,7 @@
                                  (try (let [args (for [i (range 0 (count param-boxes))]
                                                    ; Try to evaluate the expression to obtain the current parameter's value
                                                    (try
-                                                     (let [value (eval-arg (-> (nth param-boxes i) .getText) shared-vars)
+                                                     (let [value (node/eval-arg (-> (nth param-boxes i) .getText) shared-vars)
                                                            type (nth param-types i)]
                                                        (cond
                                                          ; Do primitive type conversion when necessary
@@ -179,11 +208,11 @@
                                     (= (-> e .getKeyCode) KeyEvent/VK_ESCAPE) (cancel-handler e)))]
                 (-> (first param-boxes) .requestFocus)
                 (doseq [x param-boxes]
-                  (listen x :key-pressed key-handler))
-                (listen cancel-button :action (fn [e] 
+                  (seesaw/listen x :key-pressed key-handler))
+                (seesaw/listen cancel-button :action (fn [e] 
                                                 (-> btip .closeBalloon)
                                                 (-> jtree .requestFocus)))
-                (listen ok-button :action ok-handler))
+                (seesaw/listen ok-button :action ok-handler))
               (throw (new ExpandVetoException event))))))) ; Deny expanding the tree node; it will only be expanded once the value is available
     (treeWillCollapse [event])))
 
@@ -191,7 +220,7 @@
   "Search Javadoc for the selected node (if present)"
   (let [selection (-> jtree .getLastSelectedPathComponent)]
     (if (not= selection nil)
-      (javadoc (get-javadoc-class selection)))))
+      (jdoc/javadoc (nprops/get-javadoc-class selection)))))
 
 (defn- inspect-node [jtree inspect-button]
   "Open the currently selected node in a new inspector"
@@ -211,9 +240,14 @@
     (if (= (-> selection .getKind) :method)
       (do 
         (-> jtree (.collapsePath selection-path))
-        (-> jtree .getModel (.valueForPathChanged selection-path (object-node (new Object))))
+        (-> jtree .getModel (.valueForPathChanged selection-path (node/object-node (new Object))))
         (-> jtree (.expandRow selection-row))
         (-> jtree (.setSelectionRow selection-row))))))
+
+(defn- resume-execution 
+  "Resume any threads waiting for the lock object"
+  [lock]
+  (locking lock (.notify lock)))
 
 (defn- search-tree [^JTree tree ^String key start-row forward include-current]
   "Search a JTree for the first visible node whose value contains 'key', starting from the node at row 'start-row'.
@@ -226,7 +260,7 @@
     ; Keep looking through all rows until we either find a match, or we're back at the start
     (loop [row start]
       (let [path (-> tree (.getPathForRow row))
-            node (to-string (-> path .getLastPathComponent))
+            node (nprops/to-string (-> path .getLastPathComponent))
             next-row (mod (+ row increment max-rows) max-rows)]
         (if (-> node .toUpperCase (.contains ukey))
           path
@@ -245,48 +279,51 @@
         (.scrollPathToVisible next-match))
       (-> (Toolkit/getDefaultToolkit) .beep))))
 
-(defn- tool-panel ^JToolBar [^Object object ^JTree jtree ^JSplitPane split-pane]
+(defn- tool-panel ^JToolBar [^Object object ^JTree jtree ^JSplitPane split-pane tree-options]
   "Create the toolbar of the Inspector Jay window"
   (let [iconSize [24 :by 24]
-        sort-button (toggle :icon (icon (resource "icons/alphab_sort_co.gif")) :size iconSize :selected? (tree-options :sorted))
-        filter-button (button :icon (icon (resource "icons/filter_history.gif")) :size iconSize)
-        filter-methods (checkbox :text "Methods" :selected? (tree-options :methods))
-        filter-fields (checkbox :text "Fields" :selected? (tree-options :fields))
-        filter-public (checkbox :text "Public" :selected? (tree-options :public))
-        filter-protected (checkbox :text "Protected" :selected? (tree-options :protected))
-        filter-private (checkbox :text "Private" :selected? (tree-options :private))
-        filter-static (checkbox :text "Static" :selected? (tree-options :static))
-        filter-inherited (checkbox :text "Inherited" :selected? (tree-options :inherited))
+        sort-button (seesaw/toggle :icon (seesaw/icon (io/resource "icons/alphab_sort_co.gif")) :size iconSize :selected? (tree-options :sorted))
+        filter-button (seesaw/button :icon (seesaw/icon (io/resource "icons/filter_history.gif")) :size iconSize)
+        filter-methods (seesaw/checkbox :text "Methods" :selected? (tree-options :methods))
+        filter-fields (seesaw/checkbox :text "Fields" :selected? (tree-options :fields))
+        filter-public (seesaw/checkbox :text "Public" :selected? (tree-options :public))
+        filter-protected (seesaw/checkbox :text "Protected" :selected? (tree-options :protected))
+        filter-private (seesaw/checkbox :text "Private" :selected? (tree-options :private))
+        filter-static (seesaw/checkbox :text "Static" :selected? (tree-options :static))
+        filter-inherited (seesaw/checkbox :text "Inherited" :selected? (tree-options :inherited))
         ; Refresh the inspector tree given the current options in the filter menu
         update-filters (fn [e] 
-                         (-> jtree (.setModel (tree-model object {:sorted (-> sort-button .isSelected)
-                                                                  :methods (-> filter-methods .isSelected)
-                                                                  :fields (-> filter-fields .isSelected)
-                                                                  :public (-> filter-public .isSelected)
-                                                                  :protected (-> filter-protected .isSelected)
-                                                                  :private (-> filter-private .isSelected)
-                                                                  :static (-> filter-static .isSelected)
-                                                                  :inherited (-> filter-inherited .isSelected)})))
+                         (-> jtree (.setModel (model/tree-model object {:sorted (-> sort-button .isSelected)
+                                                                        :methods (-> filter-methods .isSelected)
+                                                                        :fields (-> filter-fields .isSelected)
+                                                                        :public (-> filter-public .isSelected)
+                                                                        :protected (-> filter-protected .isSelected)
+                                                                        :private (-> filter-private .isSelected)
+                                                                        :static (-> filter-static .isSelected)
+                                                                        :inherited (-> filter-inherited .isSelected)})))
                          (-> jtree (.setSelectionPath (-> jtree (.getPathForRow 0)))))
-        filter-panel (vertical-panel :items [filter-methods filter-fields 
-                                             (separator) filter-public filter-protected filter-private
-                                             (separator) filter-static filter-inherited])
-        pane-button (toggle :icon (icon (resource "icons/details_view.gif")) :size iconSize :selected? true)
-        inspect-button (button :icon (icon (resource "icons/insp_sbook.gif")) :size iconSize)
-        doc-button (button :icon (icon (resource "icons/javadoc.gif")) :size iconSize)
-        invoke-button (button :icon (icon (resource "icons/runlast_co.gif")) :size iconSize)
-        refresh-button (button :icon (icon (resource "icons/nav_refresh.gif")) :size iconSize)
+        filter-panel (seesaw/vertical-panel :items [filter-methods filter-fields 
+                                                    (seesaw/separator) filter-public filter-protected filter-private
+                                                    (seesaw/separator) filter-static filter-inherited])
+        pane-button (seesaw/toggle :icon (seesaw/icon (io/resource "icons/details_view.gif")) :size iconSize :selected? true)
+        inspect-button (seesaw/button :icon (seesaw/icon (io/resource "icons/insp_sbook.gif")) :size iconSize)
+        doc-button (seesaw/button :icon (seesaw/icon (io/resource "icons/javadoc.gif")) :size iconSize)
+        invoke-button (seesaw/button :icon (seesaw/icon (io/resource "icons/runlast_co.gif")) :size iconSize)
+        refresh-button (seesaw/button :icon (seesaw/icon (io/resource "icons/nav_refresh.gif")) :size iconSize)
         filter-tip (delay (new BalloonTip ; Only create the filter menu once needed
-                            filter-button
-                            filter-panel
-                            (eval (gui-options :btip-style))
-                            (eval (gui-options :btip-positioner))
-                            nil))
-        search-txt (text :columns 20 :text "Search...")
-        toolbar (toolbar :items [sort-button filter-button pane-button inspect-button doc-button invoke-button refresh-button
-                                 (Box/createHorizontalGlue) search-txt (Box/createHorizontalStrut 2)])]
+                               filter-button
+                               filter-panel
+                               (eval (gui-options :btip-style))
+                               (eval (gui-options :btip-positioner))
+                               nil))
+        resume-button (if (:pause tree-options) 
+                        (seesaw/button :icon (seesaw/icon (io/resource "icons/resume_co.gif")) :size iconSize))
+        search-txt (seesaw/text :columns 20 :text "Search...")
+        toolbar-items (remove nil? [sort-button filter-button pane-button inspect-button doc-button invoke-button refresh-button resume-button
+                                    (Box/createHorizontalGlue) search-txt (Box/createHorizontalStrut 2)])
+        toolbar (seesaw/toolbar :items toolbar-items)]
     (doto toolbar
-      (.setBorder (empty-border :thickness 1))
+      (.setBorder (border/empty-border :thickness 1))
       (.setFloatable false))
     (-> search-txt (.setMaximumSize (-> search-txt .getPreferredSize)))
     ; Ditch the redundant dotted rectangle when a button is focused 
@@ -306,45 +343,53 @@
     (-> invoke-button (.setToolTipText "(Re)invoke selected method (F4)"))
     (-> refresh-button (.setToolTipText "Refresh tree"))
     (-> search-txt (.setToolTipText "Search visible tree nodes (F3 / Shift-F3)"))
+    ; Resume button
+    (if (:pause tree-options)
+      (do
+        (-> resume-button (.setFocusPainted false))
+        (-> resume-button (.setToolTipText "Resume execution"))
+        (seesaw/listen resume-button :action (fn [e]
+                                               (resume-execution (.getParent toolbar))
+                                               (-> resume-button (.setEnabled false))))))
     ; Sort button
-    (listen sort-button :action update-filters)
+    (seesaw/listen sort-button :action update-filters)
     ; Open/close filter options menu
-    (listen filter-button :action (fn [e]
+    (seesaw/listen filter-button :action (fn [e]
                                     (if (not (realized? filter-tip))
                                       ; If opened for the first time, add a listener that hides the menu on mouse exit
-                                      (listen @filter-tip :mouse-exited (fn [e]
+                                      (seesaw/listen @filter-tip :mouse-exited (fn [e]
                                                                           (if (not (-> @filter-tip (.contains (-> e .getPoint))))
                                                                             (-> @filter-tip (.setVisible false)))))
                                       (if (-> @filter-tip .isVisible)
                                         (-> @filter-tip (.setVisible false))
                                         (-> @filter-tip (.setVisible true))))))
     ; Filter checkboxes
-    (listen filter-methods :action update-filters)
-    (listen filter-fields :action update-filters)
-    (listen filter-public :action update-filters)
-    (listen filter-protected :action update-filters)
-    (listen filter-private :action update-filters)
-    (listen filter-static :action update-filters)
-    (listen filter-inherited :action update-filters)
+    (seesaw/listen filter-methods :action update-filters)
+    (seesaw/listen filter-fields :action update-filters)
+    (seesaw/listen filter-public :action update-filters)
+    (seesaw/listen filter-protected :action update-filters)
+    (seesaw/listen filter-private :action update-filters)
+    (seesaw/listen filter-static :action update-filters)
+    (seesaw/listen filter-inherited :action update-filters)
     ; Toggle horizontal/vertical layout
-    (listen pane-button :action (fn [e]
+    (seesaw/listen pane-button :action (fn [e]
                                   (if (-> pane-button .isSelected)
                                     (-> split-pane (.setOrientation 0))
                                     (-> split-pane (.setOrientation 1)))))
     ; Open selected node in new inspector
-    (listen inspect-button :action (fn [e] (inspect-node jtree inspect-button)))
+    (seesaw/listen inspect-button :action (fn [e] (inspect-node jtree inspect-button)))
     ; Open javadoc of selected tree node
-    (listen doc-button :action (fn [e] (open-javadoc jtree)))
+    (seesaw/listen doc-button :action (fn [e] (open-javadoc jtree)))
     ; (Re)invoke the selected method
-    (listen invoke-button :action (fn [e] (reinvoke jtree)))
+    (seesaw/listen invoke-button :action (fn [e] (reinvoke jtree)))
     ; Refresh the tree
-    (listen refresh-button :action update-filters)
+    (seesaw/listen refresh-button :action update-filters)
     ; Clear search field initially
-    (listen search-txt :focus-gained (fn [e] 
+    (seesaw/listen search-txt :focus-gained (fn [e] 
                                        (-> search-txt (.setText ""))
                                        (-> search-txt (.removeFocusListener (last(-> search-txt (.getFocusListeners)))))))
     ; When typing in the search field, look for matches
-    (listen search-txt #{:remove-update :insert-update} (fn [e]
+    (seesaw/listen search-txt #{:remove-update :insert-update} (fn [e]
                                                           (search-tree-and-select jtree (-> search-txt .getText) true true)))
     toolbar))
 
@@ -379,6 +424,7 @@
       (-> window (.dispatchEvent (new WindowEvent window WindowEvent/WINDOW_CLOSING)))
       ; Close the tab
       (do
+        (resume-execution (-> content (.getTabComponentAt (-> content .getSelectedIndex))))
         (-> content (.removeTabAt (-> content .getSelectedIndex)))
         ; Go back to an untabbed interface if there's only one tab left
         (if (= 1 (-> content .getTabCount))
@@ -437,69 +483,71 @@
                                  (close-selected-tab frame)))
                              ctrl-w-key JComponent/WHEN_IN_FOCUSED_WINDOW))))
 
-(defn inspector-panel ^JPanel [^Object object & args]
-  "Create and show an Inspector Jay window to inspect a given object"
-  (let [vars-index (if (not= args nil) 
-                     (+ 1 (-> args (.indexOf :vars)))
-                     0)
-        shared-vars (if (and (not= vars-index 0) (< vars-index (count args)))
-                      (nth args vars-index)
-                      {})
-        obj-info (text :multi-line? true :editable? false :font (gui-options :font))
-        obj-tree (tree :model (tree-model object tree-options))
-        crumbs (label :icon (icon (resource "icons/toggle_breadcrumb.gif")))
-        obj-info-scroll (scrollable obj-info)
-        obj-tree-scroll (scrollable obj-tree)
-        split-pane (top-bottom-split obj-info-scroll obj-tree-scroll :divider-location 1/5)
-        toolbar (tool-panel object obj-tree split-pane)
-        main-panel (border-panel :north toolbar :south crumbs :center split-pane)]
+(defn inspector-panel ^JPanel [^Object object & {:as args}]
+  "Create and show an Inspector Jay window to inspect a given object.
+   See default-options for more information on all available keyword arguments."
+  (let [obj-info (seesaw/text :multi-line? true :editable? false :font (gui-options :font))
+        obj-tree (seesaw/tree :model (model/tree-model object args))
+        crumbs (seesaw/label :icon (seesaw/icon (io/resource "icons/toggle_breadcrumb.gif")))
+        obj-info-scroll (seesaw/scrollable obj-info)
+        obj-tree-scroll (seesaw/scrollable obj-tree)
+        split-pane (seesaw/top-bottom-split obj-info-scroll obj-tree-scroll :divider-location 1/5)
+        toolbar (tool-panel object obj-tree split-pane args)
+        main-panel (seesaw/border-panel :north toolbar :south crumbs :center split-pane)]
     (-> split-pane (.setDividerSize 9))
-    (-> obj-info-scroll (.setBorder (empty-border)))
-    (-> obj-tree-scroll (.setBorder (empty-border)))
+    (-> obj-info-scroll (.setBorder (border/empty-border)))
+    (-> obj-tree-scroll (.setBorder (border/empty-border)))
     (doto obj-tree
       (.setCellRenderer (tree-renderer))
       (.addTreeSelectionListener (tree-selection-listener obj-info crumbs))
       (.addTreeExpansionListener (tree-expansion-listener obj-info))
-      (.addTreeWillExpandListener (tree-will-expand-listener shared-vars))
+      (.addTreeWillExpandListener (tree-will-expand-listener (:vars args)))
       (.setSelectionPath (-> obj-tree (.getPathForRow 0))))
     main-panel))
 
 ; List of all open Inspector Jay windows
 (def jay-windows (new java.util.Vector))
 
-(defn inspector-window [object & args]
+(defn inspector-window [object & {:as args}]
   "Show an Inspector Jay window to inspect a given object.
-   If a window was already open, a new tab will be created 
-   (unless the :new-window keyword is passed as an optional argument)."
-  (if (or (not= nil (some #{:new-window} args)) (= 0 (count jay-windows)))
+   See default-options for more information on all available keyword arguments."
+  (let [merged-args (merge default-options args)
+        panel (apply inspector-panel object (utils/map-to-keyword-args merged-args))]
+    (if (or (:new-window merged-args) (= 0 (count jay-windows)))
       ; Create a new window
-      (let [window (frame :title (str "Object inspector : " (.toString object)) 
+      (let [window (seesaw/frame :title (str "Object inspector : " (.toString object)) 
                           :size [(gui-options :width) :by (gui-options :height)]
-                          :on-close :dispose)
-            panel (apply inspector-panel object args)]
+                          :on-close :dispose)]
         (-> jay-windows (.add window))
-        (config! window :content panel)
+        (seesaw/config! window :content panel)
         (bind-keys window)
         ; When the window is closed, remove the window from the list and clear caches
-        (listen window :window-closed (fn [e] 
-                                        (-> jay-windows (.remove window))
-                                        (clear-memoization-caches)))
-        (-> window show!)
+        (seesaw/listen window :window-closed (fn [e]
+                                               ; Resume execution for threads waiting on any tabs
+                                               (let [content (-> window .getContentPane)
+                                                     isTabbed (instance? JTabbedPane content)]
+                                                 (if (not isTabbed)
+                                                   (resume-execution content)
+                                                   (doseq [x (range 0 (.getTabCount content))]
+                                                     (resume-execution (.getTabComponentAt x)))))
+                                               (-> jay-windows (.remove window))
+                                               (node/clear-memoization-caches)))
+        (-> window seesaw/show!)
         (-> (get-jtree panel) .requestFocus))
+      
       ; Otherwise, add a new tab
       (let [window (last jay-windows)
             content (-> window .getContentPane)
-            isTabbed (instance? JTabbedPane content)
-            panel (apply inspector-panel object args)]
+            isTabbed (instance? JTabbedPane content)]
         ; If the tabbed pane has not been created yet
         (if (not isTabbed)
-          (let [tabs (tabbed-panel)
-                title (truncate (-> (get-jtree content) .getModel .getRoot .getValue .toString) 20)]
-            (-> tabs (.setBorder (empty-border :top 1 :left 2 :bottom 1 :right 0)))
+          (let [tabs (seesaw/tabbed-panel)
+                title (utils/truncate (-> (get-jtree content) .getModel .getRoot .getValue .toString) 20)]
+            (-> tabs (.setBorder (border/empty-border :top 1 :left 2 :bottom 1 :right 0)))
             (-> tabs (.add title content))
             (-> window (.setContentPane tabs))
             ; When switching tabs, adjust the window title, and focus on the tree
-            (listen tabs :change (fn [e]
+            (seesaw/listen tabs :change (fn [e]
                                    (let [tree (get-jtree (get-selected-tab window))
                                          title (-> tree .getModel .getRoot .getValue .toString)]
                                      (-> window (.setTitle title))
@@ -507,9 +555,11 @@
         (let [tabs (-> window .getContentPane)]
           ; Add the new tab
           (doto tabs
-            (.add (truncate (.toString object) 20) panel)
+            (.add (utils/truncate (.toString object) 20) panel)
             (.setSelectedIndex (-> window .getContentPane (.indexOfComponent panel))))
           ; Close the first tab, if going beyond the maximum number of tabs
           (if (> (-> tabs .getTabCount) (gui-options :max-tabs))
             (-> tabs (.removeTabAt 0)))
-          (-> (get-jtree panel) .requestFocus)))))
+          (-> (get-jtree panel) .requestFocus))))
+    (if (:pause args)
+      (locking panel (.wait panel)))))

@@ -1,4 +1,4 @@
-; Copyright (c) 2013-2014 Tim Molderez.
+; Copyright (c) 2013-2015 Tim Molderez.
 ;
 ; All rights reserved. This program and the accompanying materials
 ; are made available under the terms of the 3-Clause BSD License
@@ -8,18 +8,14 @@
 (ns inspector-jay.gui.node-properties
   "Defines various visual properties of Inspector Jay's tree nodes"
   {:author "Tim Molderez"}
-  (:use 
-    [clojure.string :only [join]]
-    [clojure.java.io :only [resource]]
-    [clojure.java.javadoc]
-    [seesaw
-     [core :exclude [tree-options]]
-     [border]
-     [font]]
-    [inspector-jay.gui.utils]
+  (:require
+    [clojure.string :as s]
+    [clojure.java.io :as io]
+    [inspector-jay.gui.utils :as utils]
     [inspector-jay.model
-     [tree-node]
-     [tree-model]])
+     [tree-node :as node]
+     [tree-model :as model]]
+    [seesaw.core :as seesaw]) 
   (:import
     [java.lang.reflect Modifier]))
 
@@ -56,7 +52,7 @@
   (str
     (-> node .getMethod .getName)
     "("
-    (join (interpose ", " (map (memfn getSimpleName) (-> node .getMethod .getParameterTypes))))
+    (s/join (interpose ", " (map (memfn getSimpleName) (-> node .getMethod .getParameterTypes))))
     ") : "
     (-> node .getMethod .getReturnType .getSimpleName)))
 (defmethod to-string :field [node]
@@ -66,18 +62,18 @@
     (-> node .getValue)))
 
 (defmethod to-string-breadcrumb :default [node]
-  (truncate (-> node .getValue .toString) crumb-length))
+  (utils/truncate (-> node .getValue .toString) crumb-length))
 (defmethod to-string-breadcrumb :nil [node]
   "nil")
 (defmethod to-string-breadcrumb :method [node]
-  (truncate (str
+  (utils/truncate (str
     (-> node .getMethod .getName)
     "("
-    (join (interpose ", " (map (memfn getSimpleName) (-> node .getMethod .getParameterTypes))))
+    (s/join (interpose ", " (map (memfn getSimpleName) (-> node .getMethod .getParameterTypes))))
     ")")
     crumb-length))
 (defmethod to-string-breadcrumb :field [node]
-  (truncate (str (-> node .getField .getName)) 
+  (utils/truncate (str (-> node .getField .getName)) 
     crumb-length))
 
 (defmethod to-string-verbose :default [node]
@@ -109,28 +105,28 @@
 (defmethod to-string-value :atom [node]
   (-> node .getValue .toString))
 (defmethod to-string-value :sequence [node]
-  (to-string-sequence (-> node .getValue)))
+  (utils/to-string-sequence (-> node .getValue)))
 (defmethod to-string-value :collection [node]
-  (to-string-sequence (seq(-> node .getValue))))  
+  (utils/to-string-sequence (seq(-> node .getValue))))  
 
 (defmethod get-icon :default [node]
-  (icon (resource "icons/genericvariable_obj.gif")))
+  (seesaw/icon (io/resource "icons/genericvariable_obj.gif")))
 (defmethod get-icon :method [node]
   (let
     [mod (-> node .getMethod .getModifiers)]
   (cond
-    (Modifier/isPublic mod) (icon (resource "icons/methpub_obj.gif"))
-    (Modifier/isPrivate mod) (icon (resource "icons/methpri_obj.gif"))
-    (Modifier/isProtected mod) (icon (resource "icons/methpro_obj.gif"))
-    :else (icon (resource "icons/methdef_obj.gif")))))
+    (Modifier/isPublic mod) (seesaw/icon (io/resource "icons/methpub_obj.gif"))
+    (Modifier/isPrivate mod) (seesaw/icon (io/resource "icons/methpri_obj.gif"))
+    (Modifier/isProtected mod) (seesaw/icon (io/resource "icons/methpro_obj.gif"))
+    :else (seesaw/icon (io/resource "icons/methdef_obj.gif")))))
 (defmethod get-icon :field [node]
   (let
     [mod (-> node .getField .getModifiers)]
   (cond
-    (Modifier/isPublic mod) (icon (resource "icons/field_public_obj.gif"))
-    (Modifier/isPrivate mod) (icon (resource "icons/field_private_obj.gif"))
-    (Modifier/isProtected mod) (icon (resource "icons/field_protected_obj.gif"))
-    :else (icon (resource "icons/field_default_obj.gif")))))
+    (Modifier/isPublic mod) (seesaw/icon (io/resource "icons/field_public_obj.gif"))
+    (Modifier/isPrivate mod) (seesaw/icon (io/resource "icons/field_private_obj.gif"))
+    (Modifier/isProtected mod) (seesaw/icon (io/resource "icons/field_protected_obj.gif"))
+    :else (seesaw/icon (io/resource "icons/field_default_obj.gif")))))
 
 (defmethod get-javadoc-class :default [node]
   (-> node .getValueClass))
