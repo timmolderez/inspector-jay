@@ -36,6 +36,7 @@ If you're using **Clojure**, give these examples a try in the REPL:
 (use '(inspector-jay core))
 (inspect (new java.io.File "."))
 (inspect [[1 :2] {:three 3.0 :four "4"}])
+(inspect (new javax.swing.JFrame) :inherited false :private true)
 ```
 
 Note that calls to the `inspect` function can be configured with various keyword arguments. The complete list of configuration options is available in [gui.clj/default-options](https://github.com/timmolderez/inspector-jay/blob/master/src/inspector_jay/gui/gui.clj#L41).
