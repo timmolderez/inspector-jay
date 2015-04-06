@@ -1,12 +1,27 @@
 Release notes
 -------------
 
+v0.3
+----
+
+* New feature - Inspectors can now be configured with keyword arguments (see gui.clj/default-options)
+* New feature - An inspector can now optionally pause the current thread. Execution is resumed when either
+  clicking the resume button, or closing the inspector.
+  For example: (inspect an-object :pause true)
+* New feature - When calling inspect, it can be added to a window with a specific name.
+  This is useful to create groups of inspector tabs.
+  For example: (inspect 1 :window-name "Numbers")(inspect 2 :window-name "Numbers")(inspect "Hello" :window-name "Strings")
+  This creates two windows named "Numbers" and "Strings", where the Numbers window has two inspector tabs.
+* New feature - The tree node that was last selected can be accessed via the last-selected-value function.
+  This is useful, for example, when you need quick access to a certain node in the REPL.
+* Bug fixed - Exception when creating inspectors in rapid succession.
+
 v0.2.5
 ------
 
 * New feature - Open the selected node in a new inspector
 * New feature - Use the :vars option to pass variables into an inspector. 
-  For example: (inspect anObject :vars {:foo (new Object) :bar 314}) 
+  For example: (inspect an-object :vars {:foo (new Object) :bar 314}) 
   When entering parameter values in the inspector, you can access this map as the "vars" variable.  
 * New feature - Tabs can be closed with Ctrl+w
 * Change - A maximum number of tabs is enforced. Whenever you open a tab too many, the first one is closed.
