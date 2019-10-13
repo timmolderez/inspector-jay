@@ -9,8 +9,8 @@
   "Inspector Jay is a graphical inspector that lets you examine Java/Clojure objects and data structures."
   {:author "Tim Molderez"}
   (:gen-class
-    :name inspectorjay.InspectorJay
-    :prefix java-
+    :name inspectorjay.inspectorJay
+    :prefix "java-"
     :methods [#^{:static true} [inspect [Object] Object]])
   (:require [inspector-jay.gui
              [gui :as gui]

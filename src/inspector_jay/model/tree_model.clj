@@ -6,15 +6,16 @@
 ; http://www.opensource.org/licenses/BSD-3-Clause
 
 (ns inspector-jay.model.tree-model
-  "Defines the tree model of the object inspector"
+  "Defines the tree model of the object inspector
+  This model specifies the child nodes of a given tree node, and how many children there are."
   {:author "Tim Molderez"}
   (:require
     [inspector-jay.model.tree-node :as node])
   (:import
-     [java.util Collection Map RandomAccess]
-     [javax.swing.tree TreeModel]
-     [javax.swing.event TreeModelEvent]
-     [java.lang.reflect Method]))
+    [javax.swing.tree TreeModel]
+    [javax.swing.event TreeModelEvent]))
+
+(def MAX-ELEMS-LAZY-SEQ 50)
 
 (defmulti is-leaf
   "Is this tree node a leaf?"
@@ -30,11 +31,11 @@
   (not (-> node .mightHaveValue)))
 (defmethod is-leaf :sequence [node]
   (if (-> node .hasValue)
-    (= 0 (count (-> node .getValue)))
+    (= 0 (count (-> node .getValuePreview)))
     false))
 (defmethod is-leaf :collection [node]
   (if (-> node .hasValue)
-    (= 0 (count (-> node .getValue)))
+    (= 0 (count (-> node .getValuePreview)))
     false))
 
 (defmethod get-child :default [node index opts]
@@ -60,7 +61,9 @@
     0))
 (defmethod get-child-count :sequence [node opts]
   (if (-> node .hasValue)
-    (count (-> node .getValue))
+    (if (-> node .mightHaveInfiniteLength)
+      (count (take MAX-ELEMS-LAZY-SEQ (-> node .getValue)))
+      (count (-> node .getValue)))
     0))
 (defmethod get-child-count :collection [node opts]
   (if (-> node .hasValue)

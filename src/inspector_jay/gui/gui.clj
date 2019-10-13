@@ -34,7 +34,8 @@
     [net.java.balloontip BalloonTip CustomBalloonTip]
     [net.java.balloontip.positioners LeftAbovePositioner LeftBelowPositioner]
     [net.java.balloontip.styles IsometricBalloonStyle]
-    [net.java.balloontip.utils TimingUtils]))
+    [net.java.balloontip.utils TimingUtils]
+    (inspector_jay.model.tree_node TreeNode)))
 
 (seesaw/native!) ; Use the OS's native look and feel
 
@@ -553,7 +554,9 @@
   "Compose a window's title"
   [window-name object]
   (let [prefix (if (nil? window-name) "Object inspector : " (str window-name " : "))]
-    (str prefix (.toString object))))
+    (str prefix (nprops/to-string (new TreeNode {:value object}))
+         ;(.toString object)
+         )))
 
 (defn inspector-window 
   "Show an Inspector Jay window to inspect a given object.
@@ -591,7 +594,7 @@
           ; If the tabbed pane has not been created yet
           (if (not isTabbed)
             (let [tabs (seesaw/tabbed-panel)
-                  title (utils/truncate (-> (get-jtree content) .getModel .getRoot .getValue .toString) 20)]
+                  title (utils/truncate (-> (get-jtree content) .getModel .getRoot .getValuePreview .toString) 20)]
               (-> tabs (.setBorder (border/empty-border :top 1 :left 2 :bottom 1 :right 0)))
               (-> tabs (.add title content))
               (-> window (.setContentPane tabs))
@@ -600,7 +603,7 @@
                                             (let [tree (get-jtree (get-selected-tab window))
                                                   title (window-title 
                                                           win-name
-                                                          (-> tree .getModel .getRoot .getValue))]
+                                                          (-> tree .getModel .getRoot .getValuePreview))]
                                               (-> window (.setTitle title))
                                               (-> tree .requestFocus))))))
           (let [tabs (-> window .getContentPane)]

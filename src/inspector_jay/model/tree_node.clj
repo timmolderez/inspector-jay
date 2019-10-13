@@ -10,12 +10,14 @@
   {:author "Tim Molderez"}
   (:import
     [java.lang.reflect Modifier Method Field InvocationTargetException]
-    [clojure.lang Delay])
+    [clojure.lang Delay ISeq])
   (:require
     [clojure.core.memoize :as memo]))
 
 (def ^:dynamic meth-args) ; This declaration is needed so we can make method arguments available inside the delay-function that invokes a method (see method-node)
 (def ^:dynamic vars)      ; This declaration is needed to make shared variables available when evaluating a method argument (see eval-arg)
+
+(def PREVIEW_LENGTH 20)
 
 (defn invoke-method 
   "Call a method on an object via reflection, and return its return value.
@@ -100,6 +102,9 @@
   (getValue [this]
     "Retrieve the Java object contained by this node. (may be nil) In case the object is not available yet, it will be made available now. 
      (This typically is the case if the object is the return value of a method that has not been invoked yet.)")
+  (getValuePreview [this]
+    "Retrieve a preview of the value contained in this node. This usually corresponds to the actual value,
+     but for collections we only take the first PREVIEW_LENGTH items.")
   (hasValue [this]
     "Is the object in this node available, and does it have a non-nil value?")
   (mightHaveValue [this]
@@ -109,6 +114,8 @@
     "Is the object contained by this node available?")
   (getValueClass [this]
     "Retrieve the type of the object contained by this node.")
+  (mightHaveInfiniteLength [this]
+    "Could this node potentially expand to infinite child nodes? (e.g. if it's a lazy sequence)")
   (getMethod [this]
     "Retrieve the method that produces the node's value as its return value. (may be nil)")
   (invokeMethod [this args]
@@ -132,8 +139,15 @@
 
 (deftype TreeNode [data]
   ITreeNode
-  (getValue [this] 
+  (getValue [this]
+    ;(clojure.stacktrace/print-stack-trace (Exception. "foo"))
     (force (data :value)))
+  (getValuePreview [this]
+    (case (-> this .getCollectionKind)
+      :atom (-> this .getValue)
+      :collection (take PREVIEW_LENGTH (data :value))
+      :sequence (take PREVIEW_LENGTH (data :value))
+    ))
   (hasValue [this]
     (if (instance? Delay (data :value))
       (and 
@@ -144,6 +158,8 @@
     (and
       (contains? data :value))
     (not= (data :value) nil))
+  (mightHaveInfiniteLength [this]
+    (instance? ISeq (data :value)))
   (isValueAvailable [this]
     (if (instance? Delay (data :value))
       (realized? (data :value))

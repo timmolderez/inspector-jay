@@ -25,4 +25,8 @@
               (inspect x :pause true)
               (println x))))
   
-  (run-tests 'inspector-jay.core-test))
+  (run-tests 'inspector-jay.core-test)
+
+  (defprotocol ITest (toString [this]))
+  (deftype Test [] ITest (toString [this] (throw (Exception. "!!!") )))
+  )

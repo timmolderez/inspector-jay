@@ -44,7 +44,7 @@
   (fn [node] (-> node .getKind)))
 
 (defmethod to-string :default [node]
-  (-> node .getValue .toString))
+  (-> node .getValuePreview utils/safe-to-string))
 (defmethod to-string :nil [node]
   "nil")
 (defmethod to-string :method [node]
@@ -61,7 +61,7 @@
     (-> node .getValue)))
 
 (defmethod to-string-breadcrumb :default [node crumb-length]
-  (utils/truncate (-> node .getValue .toString) crumb-length))
+  (utils/truncate (-> node .getValuePreview utils/safe-to-string) crumb-length))
 (defmethod to-string-breadcrumb :nil [node crumb-length]
   "nil")
 (defmethod to-string-breadcrumb :method [node crumb-length]
@@ -102,11 +102,11 @@
         (to-string-value node)))))
 
 (defmethod to-string-value :atom [node]
-  (-> node .getValue .toString))
+  (-> node .getValuePreview utils/safe-to-string))
 (defmethod to-string-value :sequence [node]
-  (utils/to-string-sequence (-> node .getValue)))
+  (utils/to-string-sequence (-> node .getValuePreview)))
 (defmethod to-string-value :collection [node]
-  (utils/to-string-sequence (seq(-> node .getValue))))  
+  (utils/to-string-sequence (seq(-> node .getValuePreview))))
 
 (defmethod get-icon :default [node]
   (seesaw/icon (io/resource "icons/genericvariable_obj.gif")))

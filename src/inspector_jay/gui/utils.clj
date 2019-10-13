@@ -11,6 +11,16 @@
   (:require
     [clojure.string :as s]))
 
+(defn safe-to-string [obj]
+  "Tries to return the .toString value of an object
+   If this causes an exception, return the type of the object as a String instead."
+  (try
+    (.toString obj)
+    (catch Throwable e
+      ; This might happen due to e.g. a cyclic data structure, causing a StackOverflowException..
+      ; If any kind of exception happens, use the object's type as a fallback representation
+      (-> obj .getClass .getName))))
+
 (defn truncate 
   "Returns a truncated string. If the string is longer than length, we only return the first 'length' characters and append an ellipsis to it."
   ^String [string length]
@@ -27,7 +37,7 @@
                      1)]
     (s/join
       (for [x (range 0 n)]
-        (format (str "[%0" indexWidth "d] %s\n") x (nth sequence x))))))
+        (format (str "[%0" indexWidth "d] %s\n") x (safe-to-string (nth sequence x)))))))
 
 (defn map-to-keyword-args
   "Convert a map to a list of keyword arguments.
