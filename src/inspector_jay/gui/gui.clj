@@ -40,23 +40,23 @@
 
 (def
   ^{:doc "When a new inspector is opened, these are the default options.
-          You can customize these options via keyword arguments, 
+          You can customize these options via keyword arguments,
           e.g. (inspect an-object :sorted false :pause true)"}
   default-options
   {; Tree filtering options
    :sorted true ; Alphabetically sort members
    :methods true ; Show/hide methods
    :fields true
-   :public true 
+   :public true
    :protected false
    :private false
    :static true
    :inherited true ; Show/hide inherited members
-   
+
    ; Miscellaneous options
    :window-name nil ; If given a name, the inspector is opened as a new tab in the window with that name.
                     ; If that window does not exist yet, it will be created. This is useful if you want to
-                    ; divide your inspectors into groups. 
+                    ; divide your inspectors into groups.
    :new-window false ; If true, the inspector is opened in a new window.
                      ; Otherwise, the inspector is opened as a new tab.
                      ; This option is ignored if :window-name is used.
@@ -90,7 +90,7 @@
 (defn- error
   "Show an error message near a given component"
   [^String message ^JComponent component]
-  (TimingUtils/showTimedBalloon (new BalloonTip 
+  (TimingUtils/showTimedBalloon (new BalloonTip
                                      component
                                      (seesaw/label message)
                                      (eval (gui-options :btip-error-style))
@@ -109,17 +109,17 @@
       (-> this (.setIcon (nprops/get-icon value)))
       this)))
 
-(defn last-selected-value 
+(defn last-selected-value
   "Retrieve the value of the tree node that was last selected.
    (An exception is thrown if we can't automatically obtain this value .. e.g. in case the
    value is not available yet and the last selected node is a method with parameters.)"
   []
   (.getValue @last-selected-node))
 
-(defn- tree-selection-listener 
-  "Whenever a tree node is selected, update the detailed information panel, the breadcrumbs, 
+(defn- tree-selection-listener
+  "Whenever a tree node is selected, update the detailed information panel, the breadcrumbs,
    and the last-selected-value variable."
-  ^TreeSelectionListener [info-panel crumbs-panel]  
+  ^TreeSelectionListener [info-panel crumbs-panel]
   (proxy [TreeSelectionListener] []
     (valueChanged [event]
       (let [new-path (-> event .getNewLeadSelectionPath)]
@@ -127,11 +127,11 @@
           (let [new-node (-> new-path .getLastPathComponent)]
             (swap! last-selected-node (fn [x] new-node))
             (seesaw/config! info-panel :text (nprops/to-string-verbose new-node))
-            (seesaw/config! crumbs-panel :text 
+            (seesaw/config! crumbs-panel :text
                             (str
                               "<html>"
-                              (s/join (interpose "<font color=\"#268bd2\"><b> &gt; </b></font>" 
-                                                 (map (fn [x] (nprops/to-string-breadcrumb x (:crumb-length gui-options))) 
+                              (s/join (interpose "<font color=\"#268bd2\"><b> &gt; </b></font>"
+                                                 (map (fn [x] (nprops/to-string-breadcrumb x (:crumb-length gui-options)))
                                                       (-> new-path .getPath))))
                               "</html>"))))))))
 
@@ -143,7 +143,7 @@
       (seesaw/config! info-panel :text (nprops/to-string-verbose (-> event .getPath .getLastPathComponent))))
     (treeCollapsed [event])))
 
-(defn- tree-will-expand-listener 
+(defn- tree-will-expand-listener
   "Displays a dialog if the user needs to enter some actual parameters to invoke a method."
   ^TreeWillExpandListener [shared-vars]
   (proxy [TreeWillExpandListener] []
@@ -182,7 +182,7 @@
               (doseq [x param-boxes]
                 (-> params (.add x)))
               (let [; Form to enter paramter values
-                    btip (new CustomBalloonTip 
+                    btip (new CustomBalloonTip
                               jtree
                               border-panel
                               (-> jtree (.getPathBounds (-> event .getPath)))
@@ -202,7 +202,7 @@
                                                          (= type java.lang.Float) (float value) ; Convert double to float
                                                          (= type java.lang.Integer) (int value) ; Convert long to int
                                                          :else value))
-                                                     (catch Exception e 
+                                                     (catch Exception e
                                                        (do
                                                          (error (-> e .getMessage) (nth param-boxes i))
                                                          (throw (Exception.))))))]
@@ -210,20 +210,20 @@
                                         (-> node (.invokeMethod args))
                                         (-> btip .closeBalloon)
                                         (-> jtree (.expandPath (-> event .getPath)))
-                                        (-> jtree (.setSelectionPath (-> event .getPath))) 
+                                        (-> jtree (.setSelectionPath (-> event .getPath)))
                                         (-> jtree .requestFocus))
                                    (catch Exception e )))
                     cancel-handler (fn [e]
                                      (-> btip .closeBalloon)
                                      (-> jtree .requestFocus))
                     key-handler (fn [e]
-                                  (cond 
+                                  (cond
                                     (= (-> e .getKeyCode) KeyEvent/VK_ENTER) (ok-handler e)
                                     (= (-> e .getKeyCode) KeyEvent/VK_ESCAPE) (cancel-handler e)))]
                 (-> (first param-boxes) .requestFocus)
                 (doseq [x param-boxes]
                   (seesaw/listen x :key-pressed key-handler))
-                (seesaw/listen cancel-button :action (fn [e] 
+                (seesaw/listen cancel-button :action (fn [e]
                                                        (-> btip .closeBalloon)
                                                        (-> jtree .requestFocus)))
                 (seesaw/listen ok-button :action ok-handler))
@@ -245,7 +245,7 @@
       (let
         [window (seesaw/to-root jtree)
          name (some (fn [w] (when (= (:window w) window) (:name w))) @jay-windows)]
-        (inspector-window (-> selection .getValue) :window-name name)) 
+        (inspector-window (-> selection .getValue) :window-name name))
       (if (= (-> selection .getKind) :method)
         (error "Can't inspect the return value of this method. (Have you already called it?)" inspect-button)
         (error "Can't inspect this node; it doesn't have a value." inspect-button))))
@@ -258,13 +258,13 @@
         selection-path (-> jtree .getSelectionPath)
         selection-row (-> jtree  (.getRowForPath selection-path))]
     (if (= (-> selection .getKind) :method)
-      (do 
+      (do
         (-> jtree (.collapsePath selection-path))
         (-> jtree .getModel (.valueForPathChanged selection-path (node/object-node (new Object))))
         (-> jtree (.expandRow selection-row))
         (-> jtree (.setSelectionRow selection-row))))))
 
-(defn- resume-execution 
+(defn- resume-execution
   "Wake up any threads waiting for a lock object"
   [lock]
   (locking lock (.notify lock)))
@@ -300,7 +300,7 @@
         (.scrollPathToVisible next-match))
       (-> (Toolkit/getDefaultToolkit) .beep))))
 
-(defn- tool-panel 
+(defn- tool-panel
   "Create the toolbar of the Inspector Jay window"
   ^JToolBar [^Object object ^JTree jtree ^JSplitPane split-pane tree-options]
   (let [iconSize [24 :by 24]
@@ -324,7 +324,7 @@
                                                                         :static (-> filter-static .isSelected)
                                                                         :inherited (-> filter-inherited .isSelected)})))
                          (-> jtree (.setSelectionPath (-> jtree (.getPathForRow 0)))))
-        filter-panel (seesaw/vertical-panel :items [filter-methods filter-fields 
+        filter-panel (seesaw/vertical-panel :items [filter-methods filter-fields
                                                     (seesaw/separator) filter-public filter-protected filter-private
                                                     (seesaw/separator) filter-static filter-inherited])
         pane-button (seesaw/toggle :icon (seesaw/icon (io/resource "icons/details_view.gif")) :size iconSize :selected? true)
@@ -338,7 +338,7 @@
                                (eval (gui-options :btip-style))
                                (eval (gui-options :btip-positioner))
                                nil))
-        resume-button (if (:pause tree-options) 
+        resume-button (if (:pause tree-options)
                         (seesaw/button :icon (seesaw/icon (io/resource "icons/resume_co.gif")) :size iconSize))
         search-txt (seesaw/text :columns 20 :text "Search...")
         toolbar-items (remove nil? [sort-button filter-button pane-button inspect-button doc-button invoke-button refresh-button resume-button
@@ -348,7 +348,7 @@
       (.setBorder (border/empty-border :thickness 1))
       (.setFloatable false))
     (-> search-txt (.setMaximumSize (-> search-txt .getPreferredSize)))
-    ; Ditch the redundant dotted rectangle when a button is focused 
+    ; Ditch the redundant dotted rectangle when a button is focused
     (-> sort-button (.setFocusPainted false))
     (-> filter-button (.setFocusPainted false))
     (-> pane-button (.setFocusPainted false))
@@ -408,7 +408,7 @@
     ; Refresh the tree
     (seesaw/listen refresh-button :action update-filters)
     ; Clear search field initially
-    (seesaw/listen search-txt :focus-gained (fn [e] 
+    (seesaw/listen search-txt :focus-gained (fn [e]
                                               (-> search-txt (.setText ""))
                                               (-> search-txt (.removeFocusListener (last(-> search-txt (.getFocusListeners)))))))
     ; When typing in the search field, look for matches
@@ -425,7 +425,7 @@
         jtree (-> viewport .getView)]
     jtree))
 
-(defn- get-search-field 
+(defn- get-search-field
   "Retrieve the search field from an inspector Jay panel"
   [^JPanel panel]
   (let [toolbar (nth (-> panel .getComponents) 0)
@@ -445,7 +445,7 @@
   "Close the currently selected tab in an Inspector Jay window"
   [window tab]
   (let [content (-> window .getContentPane)
-        isTabbed (instance? JTabbedPane content)] 
+        isTabbed (instance? JTabbedPane content)]
     (if (not isTabbed)
       ; Close the window if there only is one object opened
       (-> window (.dispatchEvent (new WindowEvent window WindowEvent/WINDOW_CLOSING)))
@@ -466,7 +466,7 @@
      f4-key (KeyStroke/getKeyStroke KeyEvent/VK_F4 0)
      shift-f3-key (KeyStroke/getKeyStroke KeyEvent/VK_F3 InputEvent/SHIFT_DOWN_MASK)
      ctrl-f-key (KeyStroke/getKeyStroke KeyEvent/VK_F (-> (Toolkit/getDefaultToolkit) .getMenuShortcutKeyMask)) ; Cmd on a Mac, Ctrl elsewhere
-     ctrl-w-key (KeyStroke/getKeyStroke KeyEvent/VK_W (-> (Toolkit/getDefaultToolkit) .getMenuShortcutKeyMask))] 
+     ctrl-w-key (KeyStroke/getKeyStroke KeyEvent/VK_W (-> (Toolkit/getDefaultToolkit) .getMenuShortcutKeyMask))]
     ; Search javadoc for the currently selected node and open it in a browser window
     (-> frame .getRootPane (.registerKeyboardAction
                              (proxy [ActionListener] []
@@ -546,7 +546,7 @@
   ; Clean up any resources associated with the window
   (swap! jay-windows (fn [x] (remove (fn [w] (= (:window w) window)) x)))
   (if (empty? @jay-windows) ; If all windows are closed, reset last-selected-node
-    (swap! last-selected-node (fn [x] nil))) 
+    (swap! last-selected-node (fn [x] nil)))
   (node/clear-memoization-caches))
 
 (defn- window-title
@@ -555,12 +555,12 @@
   (let [prefix (if (nil? window-name) "Object inspector : " (str window-name " : "))]
     (str prefix (.toString object))))
 
-(defn inspector-window 
+(defn inspector-window
   "Show an Inspector Jay window to inspect a given object.
    See default-options for more information on all available keyword arguments."
   [object & {:as args}]
   (let [merged-args (merge default-options args)
-        win-name (:window-name merged-args) 
+        win-name (:window-name merged-args)
         panel (apply inspector-panel object (utils/map-to-keyword-args merged-args))]
     (seesaw/invoke-later
       (if (or ; Create a new window if: there are no windows yet, or :new-window is used, or a window with the given name hasn't been created yet.
@@ -570,19 +570,19 @@
         ; Create a new window
         (let [window (seesaw/frame :title (window-title win-name object)
                                    :size [(gui-options :width) :by (gui-options :height)]
-                                   :on-close :dispose)] 
-          (swap! jay-windows (fn [x] (conj x {:window window :name win-name}))) 
+                                   :on-close :dispose)]
+          (swap! jay-windows (fn [x] (conj x {:window window :name win-name})))
           (seesaw/config! window :content panel)
           (bind-keys window)
           ; When the window is closed, remove the window from the list and clear caches
           (seesaw/listen window :window-closed (fn [e] (close-window window)))
           (-> window seesaw/show!)
           (-> (get-jtree panel) .requestFocus))
-        
+
         ; Otherwise, add a new tab
         (let [window (if (nil? win-name)
                        (:window (last @jay-windows)) ; The most recently created window
-                       (some 
+                       (some
                          (fn [w] (when
                                    (= win-name (:name w))
                                    (:window w))) @jay-windows))
@@ -598,7 +598,7 @@
               ; When switching tabs, adjust the window title, and focus on the tree
               (seesaw/listen tabs :change (fn [e]
                                             (let [tree (get-jtree (get-selected-tab window))
-                                                  title (window-title 
+                                                  title (window-title
                                                           win-name
                                                           (-> tree .getModel .getRoot .getValue))]
                                               (-> window (.setTitle title))
@@ -612,6 +612,6 @@
             (if (> (-> tabs .getTabCount) (:max-tabs gui-options))
               (close-tab window (-> tabs (.getComponentAt 0))))
             (-> (get-jtree panel) .requestFocus)))))
-    ; If desired, pause the current thread (while the GUI keeps running in a seperate thread) 
+    ; If desired, pause the current thread (while the GUI keeps running in a seperate thread)
     (if (:pause args)
       (locking panel (.wait panel)))))

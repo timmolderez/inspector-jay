@@ -11,7 +11,7 @@
   (:require
     [clojure.string :as s]))
 
-(defn truncate 
+(defn truncate
   "Returns a truncated string. If the string is longer than length, we only return the first 'length' characters and append an ellipsis to it."
   ^String [string length]
   (if (> (count string) length)

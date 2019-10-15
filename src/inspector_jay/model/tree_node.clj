@@ -17,7 +17,7 @@
 (def ^:dynamic meth-args) ; This declaration is needed so we can make method arguments available inside the delay-function that invokes a method (see method-node)
 (def ^:dynamic vars)      ; This declaration is needed to make shared variables available when evaluating a method argument (see eval-arg)
 
-(defn invoke-method 
+(defn invoke-method
   "Call a method on an object via reflection, and return its return value.
    If the call produces an exception, it is caught and returned as the return value instead."
   [method object & args]
@@ -25,7 +25,7 @@
     (-> method (.invoke object (to-array args)))
     (catch InvocationTargetException e (-> e .getCause))))
 
-(def get-visible-fields 
+(def get-visible-fields
   (memo/memo (fn [cls opts]
           "Retrieve all fields that are visible to any instances of class cls.
               More specifically, all fields declared directly in cls, and all public/protected fields found in its ancestor classes.
@@ -56,7 +56,7 @@
                 declFields)
               filteredAncestors)))))
 
-(def get-visible-methods 
+(def get-visible-methods
   (memo/memo (fn [cls opts]
           "Retrieve all methods that are visible to any instances of class cls.
               More specifically, all methods declared directly in cls, and all public/protected methods found in its ancestor classes.
@@ -94,11 +94,11 @@
   "Clear the caches that store the list of fields and methods per class"
   []
   (memo/memo-clear! get-visible-methods)
-  (memo/memo-clear! get-visible-fields)) 
+  (memo/memo-clear! get-visible-fields))
 
 (defprotocol ITreeNode
   (getValue [this]
-    "Retrieve the Java object contained by this node. (may be nil) In case the object is not available yet, it will be made available now. 
+    "Retrieve the Java object contained by this node. (may be nil) In case the object is not available yet, it will be made available now.
      (This typically is the case if the object is the return value of a method that has not been invoked yet.)")
   (hasValue [this]
     "Is the object in this node available, and does it have a non-nil value?")
@@ -132,12 +132,12 @@
 
 (deftype TreeNode [data]
   ITreeNode
-  (getValue [this] 
+  (getValue [this]
     (force (data :value)))
   (hasValue [this]
     (if (instance? Delay (data :value))
-      (and 
-        (realized? (data :value)) 
+      (and
+        (realized? (data :value))
         (not= (deref (data :value)) nil))
       (not= (data :value) nil)))
   (mightHaveValue [this]
@@ -182,12 +182,12 @@
         (-> clojure.lang.Sequential (.isAssignableFrom cls)) :sequence
         (-> java.util.RandomAccess (.isAssignableFrom cls)) :sequence
         (-> cls .isArray) :sequence
-        ; All collections support the count and seq functions.. 
+        ; All collections support the count and seq functions..
         (-> java.util.Collection (.isAssignableFrom cls)) :collection
         (-> java.util.Map (.isAssignableFrom cls)) :collection
         :else :atom))))
 
-(defn object-node 
+(defn object-node
   "Create a new generic object node."
   ^TreeNode [^Object object]
   (new TreeNode {:value object}))
@@ -203,15 +203,15 @@
                                              (apply invoke-method method receiver meth-args)
                                              (invoke-method method receiver)))})))
 
-(defn field-node 
+(defn field-node
   "Create a field node, given a field and a receiver object.
    The object contained by this node is the field's value."
-  ^TreeNode [^Field field ^Object receiver]  
+  ^TreeNode [^Field field ^Object receiver]
   (-> field (.setAccessible true)) ; Enable access to private fields
   (new TreeNode {:field field :value (-> field (.get receiver))}))
 
 (defn eval-arg
-  "Evaluate an expression to obtain the value of a method argument. 
+  "Evaluate an expression to obtain the value of a method argument.
    The value of shared-vars is made available in the expression as the vars variable."
   [arg shared-vars]
   (binding [*ns* (the-ns 'inspector-jay.model.tree-node) ; Make sure the namespace corresponds to this file; otherwise the declaration of vars won't be found!
