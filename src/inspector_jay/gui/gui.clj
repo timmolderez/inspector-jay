@@ -99,15 +99,32 @@
                                 3000)
   (-> (Toolkit/getDefaultToolkit) .beep))
 
+(defn- highlight-text
+  [text sub-text]
+  (if (and (some? text)
+           (some? sub-text)
+           (.contains (s/upper-case text) (s/upper-case sub-text)))
+    (let [pat (re-pattern (str "(?i)(" (s/re-quote-replacement sub-text) ")"))
+          replacement (str "<span style='background:rgb(255,165,0);'>$1</span>")]
+      (s/replace text pat replacement))
+    text))
+
+(defn- prepare-node-text
+  [text sub-text]
+  (str "<html>"
+       (cond-> text
+         (not (s/blank? sub-text)) (highlight-text sub-text))
+       "</html>"))
+
 (defn- tree-renderer
   "Returns a cell renderer which defines what each tree node should look like"
-  ^DefaultTreeCellRenderer []
+  ^DefaultTreeCellRenderer [highlight-text-fn]
   (proxy [DefaultTreeCellRenderer] []
     (getTreeCellRendererComponent [tree value selected expanded leaf row hasFocus]
       (proxy-super getTreeCellRendererComponent tree value selected expanded leaf row hasFocus)
-      (-> this (.setText (nprops/to-string value)))
-      (-> this (.setIcon (nprops/get-icon value)))
-      this)))
+      (doto this
+        (.setText (prepare-node-text (nprops/to-string value) (highlight-text-fn)))
+        (.setIcon (nprops/get-icon value))))))
 
 (defn last-selected-value
   "Retrieve the value of the tree node that was last selected.
@@ -526,7 +543,7 @@
     (-> obj-info-scroll (.setBorder (border/empty-border)))
     (-> obj-tree-scroll (.setBorder (border/empty-border)))
     (doto obj-tree
-      (.setCellRenderer (tree-renderer))
+      (.setCellRenderer (tree-renderer #(.getText (get-search-field main-panel))))
       (.addTreeSelectionListener (tree-selection-listener obj-info crumbs))
       (.addTreeExpansionListener (tree-expansion-listener obj-info))
       (.addTreeWillExpandListener (tree-will-expand-listener (:vars args)))
