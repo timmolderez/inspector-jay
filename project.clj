@@ -3,7 +3,7 @@
   :url "https://github.com/timmolderez/inspector-jay"
   :license {:name "BSD 3-Clause License"
             :url "http://opensource.org/licenses/BSD-3-Clause"}
-  :dependencies [[org.clojure/clojure "1.6.0"]
+  :dependencies [[org.clojure/clojure "1.9.0"]
                  [org.clojure/core.memoize "0.5.6"]
                  [seesaw "1.4.5"
                   :exclusions [com.miglayout/miglayout

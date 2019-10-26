@@ -309,6 +309,7 @@
 (defn- search-tree-and-select
   "Search the inspector tree and select the node that was found, if any"
   [^JTree tree text forward include-current]
+  (-> tree .repaint)
   (let [start-row (if (-> tree .isSelectionEmpty) 0 (-> tree .getLeadSelectionRow))
         next-match (search-tree tree text start-row forward include-current)]
     (if (not= next-match nil)

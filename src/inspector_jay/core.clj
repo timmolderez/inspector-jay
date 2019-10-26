@@ -10,7 +10,7 @@
   {:author "Tim Molderez"}
   (:gen-class
     :name inspectorjay.InspectorJay
-    :prefix java-
+    :prefix "java-"
     :methods [#^{:static true} [inspect [Object] Object]])
   (:require [inspector-jay.gui
              [gui :as gui]
