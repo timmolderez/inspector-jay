@@ -15,7 +15,7 @@
     [inspector-jay.model
      [tree-node :as node]
      [tree-model :as model]]
-    [seesaw.core :as seesaw]) 
+    [seesaw.core :as seesaw])
   (:import
     [java.lang.reflect Modifier]))
 
@@ -72,7 +72,7 @@
     ")")
     crumb-length))
 (defmethod to-string-breadcrumb :field [node crumb-length]
-  (utils/truncate (str (-> node .getField .getName)) 
+  (utils/truncate (str (-> node .getField .getName))
     crumb-length))
 
 (defmethod to-string-verbose :default [node]
@@ -84,18 +84,18 @@
   "nil")
 (defmethod to-string-verbose :method [node]
   (str
-    (-> node .getMethod .toString)      
+    (-> node .getMethod .toString)
     (if (-> node .hasValue)
-           (str 
-             "\n\n" 
+           (str
+             "\n\n"
              (-> node .getValue .getClass .getName) " (dynamic type)"
-             "\n\n" 
+             "\n\n"
              (to-string-value node)))))
 (defmethod to-string-verbose :field [node]
-  (str 
+  (str
     (-> node .getField)
     (if (-> node .hasValue)
-      (str 
+      (str
         "\n\n"
         (-> node .getValue .getClass .getName) " (dynamic type)"
         "\n\n"
@@ -106,7 +106,7 @@
 (defmethod to-string-value :sequence [node]
   (utils/to-string-sequence (-> node .getValue)))
 (defmethod to-string-value :collection [node]
-  (utils/to-string-sequence (seq(-> node .getValue))))  
+  (utils/to-string-sequence (seq(-> node .getValue))))
 
 (defmethod get-icon :default [node]
   (seesaw/icon (io/resource "icons/genericvariable_obj.gif")))

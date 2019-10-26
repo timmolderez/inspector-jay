@@ -12,12 +12,12 @@
                                org.fife.ui/rsyntaxtextarea]]
                  [net.java.balloontip/balloontip "1.2.4.1"]]
   :plugins [[codox "0.8.11"]]
-  
+
   ; Compile these namespaces to Java
   :aot [inspector-jay.core]
-  
+
   ; Don't include these files in the jar
   :jar-exclusions [#"images/*̀"]
-  
+
   ; Java compiler options 
   :javac-options ["-target" "1.6" "-source" "1.6" "-Xlint:-options"])

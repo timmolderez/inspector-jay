@@ -18,11 +18,11 @@
   ; Open a ton of inspectors sequentially
   (doseq [x (range 1 40)]
     (do (inspect x) (println x)))
-  
+
   ; Simultaneously open many inspectors from different threads
   (doseq [x (range 1 80)]
     (future (do
               (inspect x :pause true)
               (println x))))
-  
+
   (run-tests 'inspector-jay.core-test))

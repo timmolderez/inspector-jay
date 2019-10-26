@@ -44,7 +44,7 @@
       (let [meth (nth (-> node (.getMethods opts)) index)] (node/method-node meth (-> node .getValue)))
       ; Otherwise, we must be retrieving a field
       (let [field-index (- index (count (-> node (.getMethods opts))))
-            field (nth (-> node (.getFields opts)) field-index)] 
+            field (nth (-> node (.getFields opts)) field-index)]
         (node/field-node field (-> node .getValue))))
     ; If methods are hidden, we must be retrieving a field
     (let [field (nth (-> node (.getFields opts)) index)] (node/field-node field (-> node .getValue)))))
@@ -70,7 +70,7 @@
 (defn tree-model
   "Define a tree model around root, which is the object we want to inspect"
   ^TreeModel [^Object root filter-options]
-  (let [listeners (new java.util.Vector)] 
+  (let [listeners (new java.util.Vector)]
     (proxy [TreeModel] []
       (getRoot [] (node/object-node root))
       (addTreeModelListener [treeModelListener]
